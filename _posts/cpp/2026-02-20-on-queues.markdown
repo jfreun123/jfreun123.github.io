@@ -1,0 +1,23 @@
+---
+layout: post
+title:  "On Queues"
+date:   2026-02-20 11:14:35 -0500
+categories: cpp
+---
+
+Queues are a fundamental building block for proper system designs.  By decoupling the producer and consumer, get the following benefits
+
+- A storage to avoid dropping packets.  Note, queues do *not* prevent requests getting dropped but they certainly help.
+- Asynchronous API:  let's the user fire out an expensive request without blocking for it's response.
+- Fan out
+- Horizontal Scaling
+
+However, it is *really* easy to design queues improperly that greatly limit performance.  A more performant queue leads to a higher service rate which helps deter against back pressure-- that is, the more performant the queue the less dropped packages.
+
+
+
+Resources:
+
+- [My Queue Code](https://github.com/jfreun123/queue-exploration)
+- [Queue Visualization](https://encore.dev/blog/queueing)
+-  [When Nanoseconds Matter: Ultrafast Trading Systems in C++ - David Gross - CppCon 2024](https://youtu.be/sX2nF1fW7kI?si=OwpO1KOXmC8u5WVT)
