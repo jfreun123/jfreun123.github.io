@@ -1,0 +1,17 @@
+---
+layout: default
+title: Categories
+permalink: /categories/
+---
+<div class="home">
+  <h1 class="page-heading">Categories</h1>
+
+  {%- for category in site.categories -%}
+  <h2>{{ category[0] }}</h2>
+  <ul>
+    {%- for post in category[1] -%}
+    <li><a href="{{ post.url | relative_url }}">{{ post.title }}</a></li>
+    {%- endfor -%}
+  </ul>
+  {%- endfor -%}
+</div>

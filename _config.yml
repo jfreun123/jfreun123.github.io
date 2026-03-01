@@ -34,6 +34,11 @@ giscus:
   category: "General"
   category_id: "DIC_kwDORU37ks4C3ebm"
 
+# Navigation pages shown in the header
+header_pages:
+  - about.markdown
+  - categories.md
+
 # Build settings
 theme: minima
 plugins:
