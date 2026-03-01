@@ -4,15 +4,10 @@ title: About
 permalink: /about/
 ---
 
-This is the base Jekyll theme. You can find out more info about customizing your Jekyll theme, as well as basic Jekyll usage documentation at [jekyllrb.com](https://jekyllrb.com/)
+Hey, my name is Jacob and this is a blog to keep track of stuff I find interesting.  In general, the goal is to embrace the Feynman technique and explain things in easy pieces.  
 
-You can find the source code for Minima at GitHub:
-[jekyll][jekyll-organization] /
-[minima](https://github.com/jekyll/minima)
+I graduated from WashU (in St. Louis) as a CS, Math, and physics nerd.
 
-You can find the source code for Jekyll at GitHub:
-[jekyll][jekyll-organization] /
-[jekyll](https://github.com/jekyll/jekyll)
+Currently doing secret trading stuff at Walleye, previously doing different stuff at Bloomberg.
 
-
-[jekyll-organization]: https://github.com/jekyll
+Please challenge this blog by posting in the comments or shooting me an email at [jfreun1@gmail.com](mailto:jfreun1@gmail.com).

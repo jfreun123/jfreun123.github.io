@@ -18,13 +18,13 @@
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
 
-title: My Blog
-email: your-email@example.com
+title: Jacob's Blog
+email: jfreun1@gmail.com
 description: >-
-  A personal blog built with Jekyll and hosted on GitHub Pages.
+  Blog for taking notes on interesting things.
 baseurl: "" # leave empty if repo is username.github.io; set to /repo-name otherwise
-url: "https://YOUR-GITHUB-USERNAME.github.io" # replace YOUR-GITHUB-USERNAME
-github_username: YOUR-GITHUB-USERNAME # replace with your GitHub username
+url: "https://jfreun1.github.io"
+github_username: jfreun123
 
 # Build settings
 theme: minima
