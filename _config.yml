@@ -26,6 +26,14 @@ baseurl: "" # leave empty if repo is username.github.io; set to /repo-name other
 url: "https://jfreun1.github.io"
 github_username: jfreun123
 
+# Giscus comments (https://giscus.app)
+# Fill in repo_id and category_id after running the setup at giscus.app
+giscus:
+  repo: "jfreun123/jfreun123.github.io"
+  repo_id: "R_kgDORU37kg"
+  category: "General"
+  category_id: "DIC_kwDORU37ks4C3ebm"
+
 # Build settings
 theme: minima
 plugins:
