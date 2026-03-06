@@ -86,15 +86,137 @@ This is just the Stirling numbers of the second kind scaled by $j!$.
 
 ## Solving for p
 
-Setting $W_C = 1/3$ and solving numerically:
-
-$$
-p \approx 0.999560
-$$
+Setting $W_C = 1/3$ and solving numerically gives $p \approx 0.999560$.
 
 So at Nash equilibrium, robots play the pure discrete strategy with about 99.96% probability. The continuous strategy gets a tiny but nonzero weight — just enough to make everyone indifferent.
 
 This makes intuitive sense: in a race where everyone else is going all-in on a single random race, spreading your fuel thin is almost never the right move. But "almost never" is not "never."
+
+You can verify this yourself. Here is the full solver, followed by an interactive version you can run in-browser.
+
+### Step 1 — Precompute the surjection table
+
+The naive approach is to store $f(i,j)$ as integers, but $f(23, 8)$ exceeds $10^{20}$, which overflows a 64-bit float. Instead, define $g(i,j) = f(i,j) \cdot (1/8)^i$. Dividing the recurrence by $8^i$ gives:
+
+$$g(i,j) = \frac{j}{8}\left(g(i-1,j) + g(i-1,j-1)\right)$$
+
+All values of $g$ stay in $[0, 1]$, and we can drop the $(1/8)^i$ factor from the inner sum entirely.
+
+```javascript
+const G = Array.from({length: 24}, () => new Float64Array(9));
+G[0][0] = 1;
+for (let i = 1; i <= 23; i++) {
+  for (let j = 1; j <= Math.min(i, 8); j++) {
+    G[i][j] = (j / 8) * (G[i - 1][j] + G[i - 1][j - 1]);
+  }
+}
+```
+
+### Step 2 — Evaluate $W_C(p)$
+
+Directly translating the formula. For each number of discrete opponents $i$, and each number of distinct races they cover $j$, accumulate the contribution to our win probability.
+
+```javascript
+function wc(p) {
+  let total = 0;
+  for (let i = 0; i <= 23; i++) {
+    const pI = binom(23, i) * Math.pow(p, i) * Math.pow(1 - p, 23 - i);
+    if (pI < 1e-300) continue;
+    let inner = 0;
+    for (let j = 0; j <= Math.min(i, 7); j++) {
+      inner += binom(8, j) * G[i][j] * Math.min(1, (8 - j) / (24 - i));
+    }
+    total += pI * inner;
+  }
+  return total;
+}
+```
+
+### Step 3 — Bisect for the root
+
+$W_C(p)$ equals $1/3$ at $p=0$ (trivially, by symmetry among all-continuous robots), dips well below $1/3$ for intermediate $p$ as discrete opponents cluster and crowd out uncovered races, then climbs back above $1/3$ near $p=1$ as almost all opponents are discrete and with 23 robots only covering $\approx 7.6$ of 8 races on average, leaving gaps our continuous robot exploits. We bisect in $[0.99, 1)$ to find the equilibrium crossing.
+
+```javascript
+let lo = 0.99, hi = 1 - 1e-12;
+for (let iter = 0; iter < 100; iter++) {
+  const mid = (lo + hi) / 2;
+  if (wc(mid) < 1 / 3) lo = mid; else hi = mid;
+}
+const p = (lo + hi) / 2;  // p ≈ 0.99956044
+```
+
+100 bisection iterations gives about 30 digits of precision — far more than the 6 significant figures required.
+
+---
+
+<div style="background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;padding:1.2em;margin:1.5em 0">
+  <button onclick="solveRobotPuzzle()" style="background:#0969da;color:#fff;border:none;padding:0.4em 1.1em;border-radius:4px;cursor:pointer;font-size:0.9em">Run solver</button>
+  <pre id="robot-output" style="margin:1em 0 0 0;font-size:0.85em;white-space:pre-wrap;color:#24292f;background:none;border:none;padding:0"></pre>
+</div>
+
+<script>
+function solveRobotPuzzle() {
+  // g[i][j] = f(i,j) * (1/8)^i, computed directly to avoid integer overflow.
+  // f(i,j) counts surjections (ways to assign i robots to j races, each race hit at least once).
+  // Recurrence: f(i,j) = j*(f(i-1,j) + f(i-1,j-1))
+  // Dividing both sides by 8^i:  g[i][j] = (j/8)*(g[i-1][j] + g[i-1][j-1])
+  const G = Array.from({length: 24}, () => new Float64Array(9));
+  G[0][0] = 1;
+  for (let i = 1; i <= 23; i++) {
+    for (let j = 1; j <= Math.min(i, 8); j++) {
+      G[i][j] = (j / 8) * (G[i - 1][j] + G[i - 1][j - 1]);
+    }
+  }
+
+  function binom(n, k) {
+    if (k < 0 || k > n) return 0;
+    let r = 1;
+    for (let i = 0; i < k; i++) r = r * (n - i) / (i + 1);
+    return r;
+  }
+
+  // Win probability for our continuous robot when opponents each play discrete w.p. p.
+  function wc(p) {
+    let total = 0;
+    for (let i = 0; i <= 23; i++) {
+      const pI = binom(23, i) * Math.pow(p, i) * Math.pow(1 - p, 23 - i);
+      if (pI < 1e-300) continue;
+      let inner = 0;
+      for (let j = 0; j <= Math.min(i, 7); j++) {
+        // binom(8,j) ways to choose which j races are covered,
+        // G[i][j] = f(i,j)*(1/8)^i accounts for the surjection count and uniform race selection,
+        // min(...) is our win probability across the 8-j uncovered races.
+        inner += binom(8, j) * G[i][j] * Math.min(1, (8 - j) / (24 - i));
+      }
+      total += pI * inner;
+    }
+    return total;
+  }
+
+  // W_C(p) = 1/3 at p=0 (symmetric, all continuous) and again near p≈0.9996.
+  // It dips below 1/3 for intermediate p, then climbs back through 1/3.
+  // Bisect in [0.99, 1) to find the equilibrium.
+  let lo = 0.99, hi = 1 - 1e-12;
+  for (let iter = 0; iter < 100; iter++) {
+    const mid = (lo + hi) / 2;
+    if (wc(mid) < 1 / 3) lo = mid; else hi = mid;
+  }
+  const p = (lo + hi) / 2;
+
+  document.getElementById('robot-output').textContent = [
+    'Sanity checks:',
+    `  W_C(0.000) = ${wc(0).toFixed(8)}  ← should equal 1/3 by symmetry`,
+    `  W_C(0.500) = ${wc(0.5).toFixed(8)}  ← well below 1/3`,
+    `  W_C(0.990) = ${wc(0.99).toFixed(8)}  ← approaching 1/3 from below`,
+    `  W_C(1.000) = ${wc(1 - 1e-12).toFixed(8)}  ← above 1/3`,
+    '',
+    'Bisecting for W_C(p) = 1/3 in [0.99, 1)...',
+    '',
+    `  p      = ${p.toFixed(8)}`,
+    `  W_C(p) = ${wc(p).toFixed(8)}`,
+  ].join('\n');
+}
+</script>
 
 ---
 
