@@ -6,101 +6,138 @@ categories: math
 math: true
 ---
 
-Jane Street's May 2022 puzzle asks a deceptively clean question: in a robot swimming tournament governed by Nash equilibrium, what is the probability _p_ that a robot devotes all its fuel to a single race?
+Jane Street's May 2022 puzzle asks: in a robot swimming tournament played at Nash equilibrium, what is the probability $p$ that a robot devotes all its fuel to a single race?
 
-The answer is **p ≈ 0.999560**, meaning robots almost always go all-in on one race — but not quite.
+The answer is **p ≈ 0.999560** — robots almost always go all-in on one race, but not quite.
 
 ---
 
 ## The Setup
 
-24 robots compete in 8 races (N=8, so 3N robots and N races). Each robot has a fixed fuel budget and allocates it across the 8 races however it chooses. In each race, the robot that spends the *most* fuel wins and advances to the finals. Ties are broken uniformly at random.
+24 robots compete in 8 races. Each robot has a fixed fuel budget and allocates it across the races however it chooses. In each race, the robot that spends the *most* fuel wins and advances to the finals. Ties are broken uniformly at random.
 
-A robot's goal is to maximize its probability of advancing — i.e., winning at least one race.
-
----
-
-## What is Nash Equilibrium?
-
-A **Nash equilibrium** is a set of strategies — one per player — where no individual player can improve their outcome by changing only their own strategy, assuming everyone else stays the same.
-
-The classic example is rock-paper-scissors. If you always throw rock, your opponent can exploit that by always throwing paper. The only unexploitable strategy is to randomize uniformly — and that mixed strategy is the Nash equilibrium. Neither player can do better by deviating, because any pure choice gets beaten a third of the time.
-
-The same logic applies here. If all robots played pure discrete (all fuel to one race), a clever robot could deviate: spread fuel thinly across all 8 races, guaranteed to show up everywhere, and win any race that no discrete robot happened to target. That's a profitable deviation, so pure discrete is *not* a Nash equilibrium.
-
-The equilibrium must be a **mixed strategy**: play discrete with probability _p_ and continuous with probability $1 - p$. At this _p_, neither strategy is strictly better — a robot is completely indifferent between them. That indifference condition is what lets us solve for _p_.
+8 out of 24 robots advance, so each robot's baseline win probability is $1/3$.
 
 ---
 
-## Two Strategies
+## Nash Equilibrium and the Key Insight
 
-Each robot can play one of two strategies:
+A **Nash equilibrium** is a set of strategies where no player can improve their outcome by unilaterally changing their own strategy. In a symmetric game like this, the equilibrium is the same for every robot.
 
-- **Discrete**: Put all fuel into a single randomly-chosen race.
-- **Continuous**: Spread fuel across multiple races.
+**Why pure discrete fails:** If every robot put all its fuel into one randomly-chosen race, a clever robot could deviate: spread fuel thinly across all 8 races, show up in every race, and win any race that nobody else targeted. That's a profitable deviation — so pure discrete is *not* an equilibrium.
 
-At Nash equilibrium, no robot can improve its win probability by unilaterally switching strategies. This means every robot must be *indifferent* between discrete and continuous — both must yield the same win probability.
+**The mixed strategy:** The equilibrium must mix between two strategies:
 
-By symmetry, each of the 24 robots has an equal 1/3 chance of advancing (since 8 out of 24 advance). So the Nash equilibrium condition is:
+- **Discrete**: put all fuel into a single randomly-chosen race.
+- **Continuous**: spread fuel across multiple races.
 
-> **The win probability under the continuous strategy = 1/3**
+Each robot plays discrete with probability $p$ and continuous with probability $1 - p$. At the equilibrium $p$, a robot is completely *indifferent* between the two strategies — both yield the same win probability.
 
-This is the key insight: we don't need to fully characterize the continuous strategy. We just need to compute the continuous win probability as a function of _p_, then solve for _p_.
+Since 8 of 24 robots advance, that win probability is exactly $1/3$. So the Nash equilibrium condition is simply:
 
----
+$$W_C(p) = \frac{1}{3}$$
 
-## Computing the Continuous Win Probability
-
-Suppose our robot plays continuous. The other 23 robots each independently play discrete with probability _p_ and continuous otherwise.
-
-One more simplifying assumption: a robot playing continuous places nonzero weight on every race with probability 1. This means a continuous-strategy robot always "shows up" in all 8 races.
-
-Now we compute W_C, the win probability for our continuous robot:
-
-$$W_C = \sum_{i=0}^{23} \binom{23}{i} p^i (1-p)^{23-i} \sum_{j=0}^{7} \binom{8}{j} f(i,j) \left(\frac{1}{8}\right)^i \cdot \min\left(1, \frac{8-j}{24-i}\right)$$
-
-Let's break this down:
-
-- **Outer sum over _i_**: exactly _i_ of the 23 opponents play discrete. This happens with binomial probability.
-- **Inner sum over _j_**: those _i_ discrete robots cover exactly _j_ distinct races (choosing which _j_ of 8 races get hit). The number of ways to assign _i_ distinct robots to exactly _j_ races with each race covered is $\binom{8}{j} f(i, j)$, and each robot picks a race uniformly from 8, giving the $(1/8)^i$ factor.
-- **Win probability**: our continuous robot competes in all $8 - j$ uncovered races against only the $23 - i$ continuous opponents. The $\min(1, \cdot)$ term caps the probability at 1 — if there are fewer continuous opponents than remaining races, we're guaranteed to win at least one.
+where $W_C(p)$ is the win probability of a continuous robot when all opponents play the mixed strategy. We don't need to characterize the continuous strategy in detail — we just need to compute $W_C(p)$ and solve for $p$.
 
 ---
 
 ## The f(i, j) Function
 
-$f(i, j)$ is the number of **surjections** from _i_ distinct objects onto _j_ distinct categories — i.e., ways to assign _i_ robots to _j_ races so every race gets at least one robot.
+Before deriving $W_C$, we need a counting tool.
 
-It satisfies the recurrence:
+$f(i, j)$ is the number of ways to assign $i$ labeled robots to $j$ labeled races such that every race gets at least one robot — a **surjection** (onto function).
 
-$$
-f(0, 0) = 1, \quad f(n, 0) = f(0, n) = 0 \text{ for } n > 0
-$$
-$$
-f(i, j) = j \cdot (f(i-1, j) + f(i-1, j-1)) \quad \text{for } i, j > 0
-$$
+**Example — $f(2, 2)$:** Two robots (A, B) assigned to two races (1, 2), every race covered:
 
-This is just the Stirling numbers of the second kind scaled by $j!$.
+| Robot A | Robot B | Race 1 covered? | Race 2 covered? |
+|---------|---------|-----------------|-----------------|
+| Race 1  | Race 2  | ✓ | ✓ |
+| Race 2  | Race 1  | ✓ | ✓ |
+| Race 1  | Race 1  | ✓ | ✗ |
+| Race 2  | Race 2  | ✗ | ✓ |
+
+Only the first two are valid, so $f(2, 2) = 2$.
+
+**More values:**
+- $f(1, 1) = 1$ — one robot, one race, trivially covered.
+- $f(2, 1) = 1$ — both robots go to the only race.
+- $f(3, 2) = 6$ — equals $2^3 - 2$ (all assignments minus those where everyone picks the same race).
+- $f(3, 3) = 6$ — equals $3!$ (one robot per race, in any order).
+
+**Recurrence:** For each new robot $i$, it either joins a race already covered ($j$ choices, leaving $f(i-1,j)$ ways for the rest) or opens a brand-new race ($j$ choices for which race it opens, leaving $f(i-1,j-1)$ ways for the rest):
+
+$$f(0,0) = 1, \quad f(n,0) = f(0,n) = 0 \text{ for } n > 0$$
+
+$$f(i,j) = j \cdot \bigl(f(i-1,j) + f(i-1,j-1)\bigr) \quad \text{for } i,j > 0$$
+
+This is the Stirling numbers of the second kind scaled by $j!$: $f(i,j) = j!\cdot S(i,j)$.
+
+---
+
+## Computing $W_C(p)$
+
+Our robot plays continuous. The 23 opponents each independently play discrete with probability $p$. We assume a continuous robot always places nonzero fuel in every race (an assumption the official solution takes as given).
+
+The only thing that matters about the discrete robots is *which races they cover* — they outspend us in those races, so our only opportunities are the uncovered ones. We condition on:
+
+- $i$: how many opponents play discrete
+- $j$: how many distinct races those $i$ robots collectively cover
+
+$$W_C = \sum_{i=0}^{23} \left[ \underbrace{\binom{23}{i} p^i (1-p)^{23-i}}_{\text{prob. of } i \text{ discrete opponents}} \cdot \sum_{j=0}^{7} \underbrace{\binom{8}{j} f(i,j) \left(\frac{1}{8}\right)^i}_{\text{prob. they cover } j \text{ races}} \cdot \underbrace{\min\!\left(1,\, \frac{8-j}{24-i}\right)}_{\text{our win prob.}} \right]$$
+
+**Outer sum — probability of exactly $i$ discrete opponents:**
+
+Each of the 23 opponents independently plays discrete with probability $p$, so the count is binomial:
+
+$$\binom{23}{i} p^i (1-p)^{23-i}$$
+
+**Inner sum — probability that those $i$ robots cover exactly $j$ distinct races:**
+
+Each discrete robot picks a race uniformly from 8. We want the probability they collectively land on exactly $j$ distinct races. To count this:
+
+1. Choose *which* $j$ races get covered: $\binom{8}{j}$ ways.
+2. Assign $i$ robots to those $j$ races so every chosen race gets at least one robot: $f(i,j)$ ways (the surjection count from the previous section).
+3. Each robot picks its race independently and uniformly: probability $(1/8)^i$.
+
+So the probability that $i$ discrete robots cover exactly $j$ specific races is $\binom{8}{j} \cdot f(i,j) \cdot (1/8)^i$.
+
+**Win probability given $(i, j)$:**
+
+The $j$ covered races are locked — discrete robots outspend us there. We only have a chance in the $8 - j$ *uncovered* races, competed for by all $24 - i$ continuous robots (us plus $23 - i$ others). By symmetry among continuous robots, our expected win probability is:
+
+$$\frac{8-j}{24-i}$$
+
+The $\min(1, \cdot)$ caps this at 1 for edge cases where continuous robots are outnumbered by uncovered races, guaranteeing we win at least one.
+
+**Worked example — $i=1$, $j=1$:**
+
+One opponent plays discrete and claims one race. We and $22$ other continuous robots compete for the remaining $7$ uncovered races. Our win probability is $7/23 \approx 0.304 < 1/3$ — the discrete robot consumed a race without us getting credit for it.
 
 ---
 
 ## Solving for p
 
-Setting $W_C = 1/3$ and solving numerically gives $p \approx 0.999560$.
+Setting $W_C(p) = 1/3$ numerically gives:
 
-So at Nash equilibrium, robots play the pure discrete strategy with about 99.96% probability. The continuous strategy gets a tiny but nonzero weight — just enough to make everyone indifferent.
+$$\boxed{p \approx 0.999560}$$
 
-This makes intuitive sense: in a race where everyone else is going all-in on a single random race, spreading your fuel thin is almost never the right move. But "almost never" is not "never."
+At Nash equilibrium, robots play discrete with ~99.96% probability. The continuous strategy gets a tiny but nonzero weight — just enough to make everyone indifferent.
 
-You can verify this yourself. Here is the full solver, followed by an interactive version you can run in-browser.
+**Why is $p$ so close to 1?** When $p$ is large, almost all opponents are discrete. With 23 robots each independently picking from 8 races, they cover on average $8\left(1-(7/8)^{23}\right) \approx 7.6$ of 8 races — leaving roughly 0.4 uncovered on average. A lone continuous robot wins those free races, giving $W_C > 1/3$. Equilibrium requires just a hair of continuous mixing to bring this back down to $1/3$.
+
+---
+
+## Implementation
+
+> **Note:** This site is fully static — there is no server. The solver below runs entirely in your browser as JavaScript.
 
 ### Step 1 — Precompute the surjection table
 
-The naive approach is to store $f(i,j)$ as integers, but $f(23, 8)$ exceeds $10^{20}$, which overflows a 64-bit float. Instead, define $g(i,j) = f(i,j) \cdot (1/8)^i$. Dividing the recurrence by $8^i$ gives:
+Storing $f(i,j)$ directly overflows: $f(23,8) > 10^{20}$, which exceeds 64-bit float precision. Instead define $g(i,j) = f(i,j) \cdot (1/8)^i$. Dividing the recurrence through by $8^i$:
 
 $$g(i,j) = \frac{j}{8}\left(g(i-1,j) + g(i-1,j-1)\right)$$
 
-All values of $g$ stay in $[0, 1]$, and we can drop the $(1/8)^i$ factor from the inner sum entirely.
+All values of $g$ stay in $[0,1]$, and the $(1/8)^i$ factor drops out of the formula.
 
 ```javascript
 const G = Array.from({length: 24}, () => new Float64Array(9));
@@ -114,7 +151,7 @@ for (let i = 1; i <= 23; i++) {
 
 ### Step 2 — Evaluate $W_C(p)$
 
-Directly translating the formula. For each number of discrete opponents $i$, and each number of distinct races they cover $j$, accumulate the contribution to our win probability.
+Direct translation of the formula above, using `G[i][j]` in place of `f(i,j) * (1/8)^i`.
 
 ```javascript
 function wc(p) {
@@ -134,7 +171,7 @@ function wc(p) {
 
 ### Step 3 — Bisect for the root
 
-$W_C(p)$ equals $1/3$ at $p=0$ (trivially, by symmetry among all-continuous robots), dips well below $1/3$ for intermediate $p$ as discrete opponents cluster and crowd out uncovered races, then climbs back above $1/3$ near $p=1$ as almost all opponents are discrete and with 23 robots only covering $\approx 7.6$ of 8 races on average, leaving gaps our continuous robot exploits. We bisect in $[0.99, 1)$ to find the equilibrium crossing.
+$W_C(0) = 1/3$ by symmetry (all continuous). As $p$ increases, $W_C$ dips well below $1/3$ as discrete robots cluster and cover most races. Then near $p=1$, $W_C$ climbs back above $1/3$ as opponents are nearly all discrete and leave uncovered races. We bisect in $[0.99, 1)$ to find where $W_C$ crosses $1/3$ again.
 
 ```javascript
 let lo = 0.99, hi = 1 - 1e-12;
@@ -142,10 +179,10 @@ for (let iter = 0; iter < 100; iter++) {
   const mid = (lo + hi) / 2;
   if (wc(mid) < 1 / 3) lo = mid; else hi = mid;
 }
-const p = (lo + hi) / 2;  // p ≈ 0.99956044
+const p = (lo + hi) / 2;  // ≈ 0.99956044
 ```
 
-100 bisection iterations gives about 30 digits of precision — far more than the 6 significant figures required.
+100 iterations gives ~30 digits of precision — far more than the 6 significant figures required.
 
 ---
 
@@ -156,10 +193,6 @@ const p = (lo + hi) / 2;  // p ≈ 0.99956044
 
 <script>
 function solveRobotPuzzle() {
-  // g[i][j] = f(i,j) * (1/8)^i, computed directly to avoid integer overflow.
-  // f(i,j) counts surjections (ways to assign i robots to j races, each race hit at least once).
-  // Recurrence: f(i,j) = j*(f(i-1,j) + f(i-1,j-1))
-  // Dividing both sides by 8^i:  g[i][j] = (j/8)*(g[i-1][j] + g[i-1][j-1])
   const G = Array.from({length: 24}, () => new Float64Array(9));
   G[0][0] = 1;
   for (let i = 1; i <= 23; i++) {
@@ -175,7 +208,6 @@ function solveRobotPuzzle() {
     return r;
   }
 
-  // Win probability for our continuous robot when opponents each play discrete w.p. p.
   function wc(p) {
     let total = 0;
     for (let i = 0; i <= 23; i++) {
@@ -183,9 +215,6 @@ function solveRobotPuzzle() {
       if (pI < 1e-300) continue;
       let inner = 0;
       for (let j = 0; j <= Math.min(i, 7); j++) {
-        // binom(8,j) ways to choose which j races are covered,
-        // G[i][j] = f(i,j)*(1/8)^i accounts for the surjection count and uniform race selection,
-        // min(...) is our win probability across the 8-j uncovered races.
         inner += binom(8, j) * G[i][j] * Math.min(1, (8 - j) / (24 - i));
       }
       total += pI * inner;
@@ -193,9 +222,6 @@ function solveRobotPuzzle() {
     return total;
   }
 
-  // W_C(p) = 1/3 at p=0 (symmetric, all continuous) and again near p≈0.9996.
-  // It dips below 1/3 for intermediate p, then climbs back through 1/3.
-  // Bisect in [0.99, 1) to find the equilibrium.
   let lo = 0.99, hi = 1 - 1e-12;
   for (let iter = 0; iter < 100; iter++) {
     const mid = (lo + hi) / 2;
