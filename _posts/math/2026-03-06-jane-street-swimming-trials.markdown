@@ -83,7 +83,7 @@ The only thing that matters about the discrete robots is *which races they cover
 - $i$: how many opponents play discrete
 - $j$: how many distinct races those $i$ robots collectively cover
 
-$$W_C = \sum_{i=0}^{23} \left[ \underbrace{\binom{23}{i} p^i (1-p)^{23-i}}_{\text{prob. of } i \text{ discrete opponents}} \cdot \sum_{j=0}^{7} \underbrace{\binom{8}{j} f(i,j) \left(\frac{1}{8}\right)^i}_{\text{prob. they cover } j \text{ races}} \cdot \underbrace{\min\!\left(1,\, \frac{8-j}{24-i}\right)}_{\text{our win prob.}} \right]$$
+$$W_C = \sum_{i=0}^{23} \left[ \underbrace{\binom{23}{i} p^i (1-p)^{23-i}}_{\text{prob. of } i \text{ discrete opponents}} \cdot \sum_{j=0}^{8} \underbrace{\binom{8}{j} f(i,j) \left(\frac{1}{8}\right)^i}_{\text{prob. they cover } j \text{ races}} \cdot \underbrace{\min\!\left(1,\, \frac{8-j}{24-i}\right)}_{\text{our win prob.}} \right]$$
 
 **Outer sum — probability of exactly $i$ discrete opponents:**
 
@@ -151,7 +151,7 @@ for (let i = 1; i <= 23; i++) {
 
 ### Step 2 — Evaluate $W_C(p)$
 
-Direct translation of the formula above, using `G[i][j]` in place of `f(i,j) * (1/8)^i`.
+Direct translation of the formula above, using `G[i][j]` in place of `f(i,j) * (1/8)^i`. The inner loop runs to `Math.min(i, 8)` rather than 8: you cannot cover more races than there are robots, so $f(i,j) = 0$ whenever $j > i$, meaning `G[i][j] = 0` for those indices. The upper bound is tightened to skip those guaranteed-zero terms, but the result is identical to summing all the way to 8.
 
 ```javascript
 function wc(p) {
@@ -160,7 +160,7 @@ function wc(p) {
     const pI = binom(23, i) * Math.pow(p, i) * Math.pow(1 - p, 23 - i);
     if (pI < 1e-300) continue;
     let inner = 0;
-    for (let j = 0; j <= Math.min(i, 7); j++) {
+    for (let j = 0; j <= Math.min(i, 8); j++) {
       inner += binom(8, j) * G[i][j] * Math.min(1, (8 - j) / (24 - i));
     }
     total += pI * inner;
@@ -214,7 +214,7 @@ function solveRobotPuzzle() {
       const pI = binom(23, i) * Math.pow(p, i) * Math.pow(1 - p, 23 - i);
       if (pI < 1e-300) continue;
       let inner = 0;
-      for (let j = 0; j <= Math.min(i, 7); j++) {
+      for (let j = 0; j <= Math.min(i, 8); j++) {
         inner += binom(8, j) * G[i][j] * Math.min(1, (8 - j) / (24 - i));
       }
       total += pI * inner;
