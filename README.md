@@ -2,3 +2,5 @@
 ```bash
 bundle exec jekyll serve
 ```
+
+Served at http://localhost:4000

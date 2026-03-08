@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "A Modern C++23 Project Template"
-date:   2026-03-08 12:00:00 -0500
+date:   2026-03-08 00:00:00 -0500
 categories: cpp
 ---
 
