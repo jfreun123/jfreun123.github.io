@@ -101,12 +101,6 @@ The hot path in most financial systems is: receive records from the wire (FIX, C
 
 The one thing it loses — calendar arithmetic — is comparatively a rare operation.  This optimization is so significant because it is *not* strictly better in every use case-- just the cases that we care about the most.
 
-## The Integer Encoding Is Not a Coincidence
-
-`yyyymmdd` as an integer has a useful property: the natural integer ordering matches chronological order.  `20260101 < 20260309 < 20261231` is true both arithmetically and calendrically.  That's why you can sort a list of int dates with a plain `std::sort` and get the right answer — no custom comparator needed.
-
-If the encoding were `ddmmyyyy` or any other arrangement, sorting by integer value would give the wrong order.  The `yyyymmdd` layout is a deliberate choice.
-
 ## Resources:
 
 - [int-date-vs-struct-date on GitHub](https://github.com/jfreun123/int-date-vs-struct-date/tree/main)
