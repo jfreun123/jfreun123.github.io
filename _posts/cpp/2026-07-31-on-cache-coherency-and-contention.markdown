@@ -52,11 +52,35 @@ So, when one core updates its cache line, every other core's copy of that cache 
 
 *Figure from Fedor Pikus's CppCon 2017 talk.*[^pikus]
 
-For the MESI protocol, initially, all cache lines are empty and hence invalid.  If data is loaded into the cache for writing, the cache changes to Modified (M).  A cache line is considered Shared (S) if another processor has the same cache line---otherwise it is Exclusive (E).  For one example of what this looks like, if a cache line is Modified and is read from or written to by the local core, the instruction can just use the current cache content and the state does not change.  If, however, a second core wants to read the same cache line that the first core just wrote to, then that core needs to send the content of its cache to the second processor and then it can change the state to Shared.  Moreover, if the second core wanted to *write* to the same cache line, then the first core would send its content to the second core and the first core would mark its content locally invalid---this is a case of RFO ("Request for Ownership").  This case, where two cores are writing to the same cache line, is horrifically expensive.[^drepper]
+For the MESI protocol, initially, all cache lines are empty and hence invalid.  From there:
+
+1. If data is loaded into the cache for writing, the cache line changes to Modified (M).
+2. If data is loaded for reading, the cache line is considered Shared (S) if another processor has the same cache line---otherwise it is Exclusive (E).
+
+For one example of what this looks like:
+
+1. If a cache line is Modified and is read from or written to by the local core, the instruction can just use the current cache content and the state does not change.
+2. If, however, a second core wants to read the same cache line that the first core just wrote to, then the first core needs to send the content of its cache to the second processor, and then it can change the state to Shared.
+3. Moreover, if the second core wanted to *write* to the same cache line, then the first core would send its content to the second core and the first core would mark its content locally invalid---this is a case of RFO ("Request for Ownership").
+
+This case, where two cores are writing to the same cache line, is horrifically expensive.[^drepper]
+
+In summary:
+
+| Request | Others have the line? | Requester ends up | Others end up | The line's dirty bit (at most one cache can hold a line dirty) |
+|---|---|---|---|---|
+| Plain read | No | E (Exclusive) | — | clean everywhere (memory is up to date) |
+| Plain read | Yes (clean) | S (Shared) | stay S | clean everywhere |
+| Plain read | Yes (dirty, M) | S (Shared) | M → S (+ writeback to memory) | cleared *in the old owner's cache* — the writeback re-syncs memory |
+| RFO (write intent) | Either way | E → M (Modified) | I (Invalid) | set *in the requester's cache* the moment its store lands (M *is* the dirty bit) |
+
+Note that the others end up Invalid, but an actual cache line update never happens unless some other core tries to read that variable.  In that case, a sync-up would happen (which would also be expensive).  So, on a write, every other core's copy gets marked as I---but that mark may not ever mean anything...
+
+(How does one core know another core wants its data?  The short answer is "snooping": every cache controller watches the interconnect for addresses it holds.  But this post is getting long---snooping and the other hardware-level details of MESI deserve their own post...)
 
 So when the first core writes a cache line, the effort is not necessarily in copying the 64-byte cache line.  The effort is in finding the owner, coordinating with it, and waiting for the MESI protocol to complete to ensure that we have exclusive ownership and can correctly write.
 
-Finally, to understand why the first `compare_exchange_strong` was so problematic, it's important to know what it does under the hood.  Firstly, `compare_exchange_strong` (CES) executes as a single atomic operation (and our `CMP_N_SWAP` pseudo-instruction below is a stand-in for a real instruction like x86's `lock cmpxchg`).
+Finally, to understand why the first `compare_exchange_strong` was so problematic, it's important to know what it does under the hood.  Firstly, `compare_exchange_strong` (CES) executes as a single atomic operation (on real hardware it is a single instruction, like x86's `lock cmpxchg`).
 
 ```cpp
 bool compare_exchange_strong(int *value, int &expected, int new_value){
@@ -70,27 +94,10 @@ bool compare_exchange_strong(int *value, int &expected, int new_value){
 }
 ```
 
-```cpp
-static inline bool compare_exchange_strong(int *value, int &expected, int new_value) {
-    int old;
-    __asm__ volatile (
-        "CMP_N_SWAP %0, [%1], %2, %3"
-        : "=r"(old)
-        : "r"(value), "r"(expected), "r"(new_value)
-        : "memory"
-    );
-    if (old == expected) {
-        return true;
-    }
-    expected = old;
-    return false;
-}
-```
-
 *Code adapted from the Core Dumped video.*[^coredumped]
 
 
-So, regardless of whether we write to our target `value`, we still issue an RFO because `compare_exchange_strong` is an atomic operation.  Moreover, on failure, each CES writes into the shared `expected_`'s cache line---doubling the MESI avalanche.  This means that threads constantly hitting this member function will all try to write to the exact same cache lines and create an avalanche of MESI exclusive access requests.  The second version is so much faster because it sidesteps this wall entirely---with a simple read we avoid any write at all.
+So, regardless of whether we write to our target `value`, we still issue an RFO because `compare_exchange_strong` is an atomic operation.  Moreover, on failure, each CES writes into the shared `expected_`'s cache line---doubling the MESI avalanche.  The second version is so much faster because it sidesteps this wall entirely---with a simple read we avoid any write at all.
 
 This pattern of checking the read (in a relaxed, non-hardware-fencing way) is so powerful that it even made its way into Fedor Pikus's implementation of an efficient spinlock.  A slow spinlock may look like this:
 
@@ -109,7 +116,7 @@ class Spinlock {
 
 *Code from The Art of Writing Efficient Programs.*[^pikusbook]
 
-Note that `exchange` just exchanges the value and returns the previous value.  So, if `flag_` is 0 and we call `lock()`, then `exchange` returns 0, we break out of the loop, and `flag_` is set to 1.  If the flag is already locked, with a value of 1, then we continuously try exchanging 1 with 1 and spin in the while loop.  However, this implementation has terrible performance because we keep trying to write the value 1 to `flag_` even if there is nothing to replace.  That is, we keep writing to the same cache line, and this lock, in any normal use case, would be accessed from multiple threads, causing an avalanche of MESI exclusive access requests.  (There is another optimization for sleeping, but that relates more to operating system thread prioritization, which I don't want to dive into for this article.)  
+Note that `exchange` just exchanges the value and returns the previous value.  So, if `flag_` is 0 and we call `lock()`, then `exchange` returns 0, we break out of the loop, and `flag_` is set to 1.  If the flag is already locked, with a value of 1, then we continuously try exchanging 1 with 1 and spin in the while loop.  However, this implementation has terrible performance because we keep trying to write the value 1 to `flag_` even if there is nothing to replace.  That is, we keep writing to the same cache line, and this lock, in any normal use case, would be accessed from multiple threads, causing an avalanche of MESI exclusive access requests.  
 
 
 
