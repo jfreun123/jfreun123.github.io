@@ -6,15 +6,38 @@ categories: math
 math: true
 ---
 
-While pure financial modeling may have limited edge in today's world (with classical machine learning being a dominant source of edge to feed into classical financial models), it is still important -- or at the very least, interesting -- to know where these classical models came from.  To start, there are a few prerequisite definitions.  First off, it is important to note what a Markov process is-- it is just a process where only the current value of a variable is relevant for predicting the future value.  This assumption is generally used as a reflection of the weak form of market efficiency, which states that the present price of stocks contains all the information contained in a record of past prices.  Evidently, this claim is very likely not true based on various papers[^lomackinlay][^itosugiyama] and the existence of billion-dollar industries.  Nonetheless, it is the first foundational assumption that all of the following work is built on.  
+{::comment}
+REVIEW (structure, bigger picture -- optional):
+1. State the answer up top.  The title's question isn't answered until ~3/4 in.  A two-sentence TL;DR after the intro (variances -- not SDs -- add across independent intervals, so only p = 1/2 survives slicing the interval finer) would hook readers immediately, like the swimming-trials post does.
+2. Add 2-3 section headings to the body (e.g. "The Wiener process", "Generalizing it", "Why sqrt(dt)?").  The body is currently one unbroken flow from intro to conclusion; your other posts use headings.
+3. The intro's market-efficiency detour runs long before the math starts; consider tightening the first parenthetical.
+{:/comment}
 
-Next, for another useful property:  if the changes over two non-overlapping periods are independent and normally distributed, $X_1 \sim \mathcal{N}(\mu_1, \sigma_1^2)$ and $X_2 \sim \mathcal{N}(\mu_2, \sigma_2^2)$, then the total change over the combined period is distributed as
+While pure financial modeling may have limited edge in today's world (with classical machine learning being a dominant source of edge to feed into classical financial models), it is still important -- or at the very least, interesting -- to know where these classical models came from.  To start, there are a few pre-requisite definitions.  First off, it is important to note what a Markov Process is-- it is just a process where only the current value of a variable is relevant for predicting the future value.  This assumption is generally used as a reflection of the weak form of market efficiency which states that the present price of stocks contains all the information contained in a record of past prices.  Evidently, this claim is very likely not true based on various papers[^lomackinlay][^itosugiyama] and the existence of billion-dollar industries.  Nonetheless, it is the first foundational assumption that all of the next work is built on.
+
+{::comment}
+REVIEW (grammar, paragraph above):
+- "pre-requisite" -> "prerequisite" (standard spelling)
+- "Markov Process" -> "Markov process" (lowercase mid-sentence; you use lowercase everywhere else)
+- "market efficiency which states" -> "market efficiency, which states" (comma before nonrestrictive "which")
+- "all of the next work" -> "all of the following work" ("next work" is non-idiomatic)
+{:/comment}
+
+Next, for another useful property, variables that follow a Markov stochastic process are additive by definition:  if the changes over two non-overlapping periods are independent and normally distributed, $X_1 \sim \mathcal{N}(\mu_1, \sigma_1^2)$ and $X_2 \sim \mathcal{N}(\mu_2, \sigma_2^2)$, then the total change over the combined period is distributed as
+
+{::comment}
+REVIEW (accuracy, the most important one): "variables that follow a Markov stochastic process are additive by definition" attributes additivity to the wrong property.  Markov = the future depends only on the present; it is the INDEPENDENCE of the increments (your Property 2) that makes means/variances add.  The second half of the sentence already states the correct hypothesis, so the minimal fix is to drop the clause: "Next, for another useful property:  if the changes over two non-overlapping periods are independent and normally distributed, ...".
+{:/comment}
 
 $$X_1 + X_2 \sim \mathcal{N}\left(\mu_1 + \mu_2,\ \sigma_1^2 + \sigma_2^2\right)$$
 
 That is, the [means add](#linearity-of-expectation) and the [variances add](#variances-add).
 
-Now, to get into the weeds of this article, we define a Wiener process as a particular type of Markov process with a mean change of zero and a variance rate of 1.0.  Formally, it has the following properties:
+Now, to get into the weeds of this article, we define a Wiener Process as a particular type of Markov process with a mean change of zero and a variance rate of 1.0.  Formally, it has the following properties:
+
+{::comment}
+REVIEW (consistency, paragraph above): "Wiener Process" -> "Wiener process" (lowercase, as in the rest of the post).
+{:/comment}
 
 **Property 1:**  The change $\Delta z$ during a small period of time $\Delta t$ is
 
@@ -34,7 +57,7 @@ where the second line starts from the [definition of variance](#definition-of-va
 
 Moreover, Property 2 immediately tells us that a Wiener process is Markov.
 
-(For a cool related fact -- the expected *length* of the path followed by $z$ in any time interval is infinite -- see the [appendix](#appendix-sum-of-a-path-on-classic-wiener-goes-to-infinity).)
+(For a cool related fact -- the expected *length* of the path followed by $z$ in any time interval is infinite -- see the [appendix](#appendix-the-expected-path-length-of-a-wiener-process-is-infinite).)
 
 Now, to generalize Wiener for a variable $x$:
 
@@ -44,7 +67,13 @@ $$dx = a\,dt + b\,dz$$
 
 *Figure adapted from Options, Futures, and Other Derivatives.*[^hull]
 
-Here, $b\,dz$ is considered the "noise" term.  If it were zero, we'd have a very well defined $dx = a\,dt$ and could immediately solve to get $x = x_0 + at$.  Moreover, a Wiener process has a variance rate per unit time of 1.0.  It follows, since [variance scales quadratically](#variance-scaling), that "$b$ times a Wiener process" has a variance rate per unit time of $b^2$ (remember, we interpret models in terms of standard deviation but we use variance because it is algebraically simpler to work with).  So, in a generalized Wiener process, Property 1 becomes
+Here, $b\,dz$ is considered the "noise" term.  If it were zero, we'd have a very well defined $dx = a\,dt$ and could immediately solve to get $x = x_0 + at$.  Moreover, a Wiener process has a variance rate per unit time of 1.0-- it follows -- since [variance scales quadratically](#variance-scaling) -- that "$b$ times a Wiener process" has a variance rate per unit time of $b^2$ (remember, we interpret models in terms of standard deviation but we use variance because it is algebraically simpler to work with).   So, in a generalized Wiener process, Property 1 becomes
+
+{::comment}
+REVIEW (style, paragraph above):
+- "1.0-- it follows -- since [link] -- that" is a dash pileup (three in a row; my earlier link edit made this worse).  Suggest: "1.0.  It follows, since [variance scales quadratically], that ...".
+- Triple space after "work with)." -> double space, matching the rest of the post.
+{:/comment}
 
 $$\Delta x = a\,\Delta t + b \epsilon \sqrt{\Delta t}$$
 
@@ -84,6 +113,10 @@ This would lead to an overall variance over a period $T$ (again splitting it int
 $$\text{Var}(x(T) - x(0)) = N \cdot b^2\, \Delta t^2 = \frac{T}{\Delta t} \cdot b^2\, \Delta t^2 = b^2\, T\, \Delta t$$
 
 which would go to zero as $\Delta t$ goes to zero!  That is to say, we would be able to predict exactly the terminal value of this process and nothing is very interesting-- we would just have a straight line.
+
+{::comment}
+REVIEW (formatting): there was a double blank line here -> single blank line.
+{:/comment}
 
 Ok, but what if we do some other power?  What about the fourth root of $\Delta t$?  In general, let's take a look at
 
@@ -324,9 +357,13 @@ For reference, here is every statistics and probability fact the derivations abo
 
 - **Mean absolute value of the standard normal:**{: #half-normal-mean} $E\left|\epsilon\right| = \sqrt{2/\pi} \approx 0.798$ -- the mean of the half-normal distribution, obtained by integrating $\lvert x \rvert$ against the standard normal density.  Used in the path-length appendix to compute the expected size of a single step, $E\left|\Delta z\right|$.
 
-## Appendix: Sum of a path on Classic Wiener goes to infinity
+## Appendix: The expected path length of a Wiener process is infinite
 
-This is a cool fact that I could not resist writing about, but that I also don't want to give a full blog post.  Going back to a simple Wiener (not generalized):
+{::comment}
+REVIEW (grammar, sentence below): "writing about but also don't want to give it a full blog post" -> "writing about, but that I also don't want to give a full blog post" (comma, and the "it" clashes with the relative clause "that ... about").
+{:/comment}
+
+This is a cool fact that I could not resist writing about but also don't want to give it a full blog post.  Going back to a simple Wiener (not generalized):
 
 $$\Delta z = \epsilon \sqrt{\Delta t}$$
 
