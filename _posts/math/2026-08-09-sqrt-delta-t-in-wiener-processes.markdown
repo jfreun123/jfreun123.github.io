@@ -328,11 +328,11 @@ For reference, here is every statistics and probability fact the derivations abo
 
 - **Sums of independent normals are normal:**{: #normal-sums} the normal family is closed under independent addition.  This upgrades "mean $aT$, variance $b^2 T$" to the full distributional statement $x(T) - x(0) \sim \mathcal{N}\left(aT,\ b^2 T\right)$.
 
-- **Mean absolute value of the standard normal:**{: #half-normal-mean} $E\left|\epsilon\right| = \sqrt{2/\pi} \approx 0.798$ -- the mean of the half-normal distribution.  Without doing the full work, here is the integral it comes from:
+- **Mean absolute value of the standard normal:**{: #half-normal-mean} $E\lvert\epsilon\rvert = \sqrt{2/\pi} \approx 0.798$ -- the mean of the half-normal distribution.  Without doing the full work, here is the integral it comes from:
 
   $$E\left|\epsilon\right| = \int_{-\infty}^{\infty} \lvert x \rvert\, \frac{e^{-x^2/2}}{\sqrt{2\pi}}\, dx = \frac{2}{\sqrt{2\pi}} \int_{0}^{\infty} x\, e^{-x^2/2}\, dx = \frac{2}{\sqrt{2\pi}} \cdot 1 = \sqrt{\frac{2}{\pi}}$$
 
-  The density is symmetric, so integrating $\lvert x \rvert$ is twice the positive half; then the substitution $u = x^2/2$ turns the remaining integral into $\int_0^\infty e^{-u}\, du = 1$.  (The $\pi$ is hiding in the density's normalizing constant $\sqrt{2\pi}$ -- *that* one is the famous change-of-coordinates trick, where you square the Gaussian integral and switch to polar coordinates.)  Used in the path-length appendix to compute the expected size of a single step, $E\left|\Delta z\right|$.
+  The density is symmetric, so integrating $\lvert x \rvert$ is twice the positive half; then the substitution $u = x^2/2$ turns the remaining integral into $\int_0^\infty e^{-u}\, du = 1$.  (The $\pi$ is hiding in the density's normalizing constant $\sqrt{2\pi}$ -- *that* one is the famous change-of-coordinates trick, where you square the Gaussian integral and switch to polar coordinates.)  Used in the path-length appendix to compute the expected size of a single step, $E\lvert\Delta z\rvert$.
 
 ## Appendix: The expected path length of a Wiener process is infinite
 
@@ -346,7 +346,7 @@ The distance the path travels is the sum of the absolute values of its steps.  S
 
 $$L = \sum_{i=1}^{N} \left|\Delta z_i\right| = \sum_{i=1}^{N} \left|\epsilon_i\right| \sqrt{\Delta t}$$
 
-Taking expectations, by [linearity](#linearity-of-expectation) and the [mean absolute value of the standard normal](#half-normal-mean), $E\left|\epsilon\right| = \sqrt{2/\pi}$:
+Taking expectations, by [linearity](#linearity-of-expectation) and the [mean absolute value of the standard normal](#half-normal-mean), $E\lvert\epsilon\rvert = \sqrt{2/\pi}$:
 
 $$E[L] = N \cdot \sqrt{\frac{2}{\pi}}\, \sqrt{\Delta t} = \frac{T}{\Delta t} \cdot \sqrt{\frac{2}{\pi}}\, \sqrt{\Delta t} = \sqrt{\frac{2}{\pi}}\, \frac{T}{\sqrt{\Delta t}}$$
 
