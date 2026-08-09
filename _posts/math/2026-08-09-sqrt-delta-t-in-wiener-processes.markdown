@@ -14,6 +14,8 @@ $$X_1 + X_2 \sim \mathcal{N}\left(\mu_1 + \mu_2,\ \sigma_1^2 + \sigma_2^2\right)
 
 That is, the [means add](#linearity-of-expectation) and the [variances add](#variances-add).
 
+## The Wiener process
+
 Now, to get into the weeds of this article, we define a Wiener process as a particular type of Markov process with a mean change of zero and a variance rate of 1.0.  Formally, it has the following properties:
 
 **Property 1:**  The change $\Delta z$ during a small period of time $\Delta t$ is
@@ -35,6 +37,8 @@ where the second line starts from the [definition of variance](#definition-of-va
 Moreover, Property 2 immediately tells us that a Wiener process is Markov.
 
 (For a cool related fact -- the expected *length* of the path followed by $z$ in any time interval is infinite -- see the [appendix](#appendix-the-expected-path-length-of-a-wiener-process-is-infinite).)
+
+## Generalizing it
 
 Now, to generalize Wiener for a variable $x$:
 
@@ -66,6 +70,8 @@ To see this, split $[0, T]$ into $N = T / \Delta t$ small intervals.  By Propert
 - $\text{Var}(x(T) - x(0)) = \sum_{i=1}^{N} \text{Var}(\Delta x_i) = N \cdot b^2\,\Delta t = b^2 T$
 
 and a [sum of independent normal variables is itself normal](#normal-sums).  The standard deviation of $x(T) - x(0)$ is therefore $b \sqrt{T}$: uncertainty grows with the *square root* of elapsed time.
+
+## Why sqrt(Δt)?
 
 Now, for the goal of this post:  why $\sqrt{\Delta t}$?  Why not just have
 
