@@ -6,6 +6,8 @@ categories: math
 math: true
 ---
 
+*The following was written by me, but reviewed by Claude for grammar and math mistakes.*
+
 While pure financial modeling may have limited edge in today's world (with classical machine learning being a dominant source of edge to feed into classical financial models), it is still important -- or at the very least, interesting -- to know where these classical models came from.  To start, there are a few prerequisite definitions.  First off, it is important to note what a Markov process is-- it is just a process where only the current value of a variable is relevant for predicting the future value.  This assumption is generally used as a reflection of the weak form of market efficiency, which states that the present price of stocks contains all the information contained in a record of past prices.  Evidently, this claim is very likely not true based on various papers[^lomackinlay][^itosugiyama] and the existence of billion-dollar industries.  Nonetheless, it is the first foundational assumption that all of the following work is built on.  
 
 Next, for another useful property:  if the changes over two non-overlapping periods are independent and normally distributed, $X_1 \sim \mathcal{N}(\mu_1, \sigma_1^2)$ and $X_2 \sim \mathcal{N}(\mu_2, \sigma_2^2)$, then the total change over the combined period is distributed as
