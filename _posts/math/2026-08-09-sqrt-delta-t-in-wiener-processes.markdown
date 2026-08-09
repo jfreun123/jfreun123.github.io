@@ -6,15 +6,15 @@ categories: math
 math: true
 ---
 
-While pure financial modeling may have limited edge in today's world (with classical machine learning being a dominant source of edge to feed into classical financial models), it is still important -- or at the very least, interesting -- to know where these classical models came from.  To start, there are a few pre-requisite definitions.  First off, it is important to note what a Markov Process is-- it is just a process where only the current value of a variable is relevant for predicting the future value.  This assumption is generally used as a reflection of the weak form of market efficiency which states that the present price of stocks contains all the information contained in a record of past prices.  Evidently, this claim is very likely not true based on various papers[^lomackinlay][^itosugiyama] and the existence of billion-dollar industries.  Nonetheless, it is the first foundational assumption that all of the next work is built on.  
+While pure financial modeling may have limited edge in today's world (with classical machine learning being a dominant source of edge to feed into classical financial models), it is still important -- or at the very least, interesting -- to know where these classical models came from.  To start, there are a few prerequisite definitions.  First off, it is important to note what a Markov process is-- it is just a process where only the current value of a variable is relevant for predicting the future value.  This assumption is generally used as a reflection of the weak form of market efficiency, which states that the present price of stocks contains all the information contained in a record of past prices.  Evidently, this claim is very likely not true based on various papers[^lomackinlay][^itosugiyama] and the existence of billion-dollar industries.  Nonetheless, it is the first foundational assumption that all of the following work is built on.  
 
-Next, for another useful property, variables that follow a Markov stochastic process are additive by definition:  if the changes over two non-overlapping periods are independent and normally distributed, $X_1 \sim \mathcal{N}(\mu_1, \sigma_1^2)$ and $X_2 \sim \mathcal{N}(\mu_2, \sigma_2^2)$, then the total change over the combined period is distributed as
+Next, for another useful property:  if the changes over two non-overlapping periods are independent and normally distributed, $X_1 \sim \mathcal{N}(\mu_1, \sigma_1^2)$ and $X_2 \sim \mathcal{N}(\mu_2, \sigma_2^2)$, then the total change over the combined period is distributed as
 
 $$X_1 + X_2 \sim \mathcal{N}\left(\mu_1 + \mu_2,\ \sigma_1^2 + \sigma_2^2\right)$$
 
 That is, the [means add](#linearity-of-expectation) and the [variances add](#variances-add).
 
-Now, to get into the weeds of this article, we define a Wiener Process as a particular type of Markov process with a mean change of zero and a variance rate of 1.0.  Formally, it has the following properties:
+Now, to get into the weeds of this article, we define a Wiener process as a particular type of Markov process with a mean change of zero and a variance rate of 1.0.  Formally, it has the following properties:
 
 **Property 1:**  The change $\Delta z$ during a small period of time $\Delta t$ is
 
@@ -34,7 +34,7 @@ where the second line starts from the [definition of variance](#definition-of-va
 
 Moreover, Property 2 immediately tells us that a Wiener process is Markov.
 
-(For a cool related fact -- the expected *length* of the path followed by $z$ in any time interval is infinite -- see the [appendix](#appendix-sum-of-a-path-on-classic-wiener-goes-to-infinity).)
+(For a cool related fact -- the expected *length* of the path followed by $z$ in any time interval is infinite -- see the [appendix](#appendix-the-expected-path-length-of-a-wiener-process-is-infinite).)
 
 Now, to generalize Wiener for a variable $x$:
 
@@ -44,7 +44,7 @@ $$dx = a\,dt + b\,dz$$
 
 *Figure adapted from Options, Futures, and Other Derivatives.*[^hull]
 
-Here, $b\,dz$ is considered the "noise" term.  If it were zero, we'd have a very well defined $dx = a\,dt$ and could immediately solve to get $x = x_0 + at$.  Moreover, a Wiener process has a variance rate per unit time of 1.0-- it follows -- since [variance scales quadratically](#variance-scaling) -- that "$b$ times a Wiener process" has a variance rate per unit time of $b^2$ (remember, we interpret models in terms of standard deviation but we use variance because it is algebraically simpler to work with).   So, in a generalized Wiener process, Property 1 becomes
+Here, $b\,dz$ is considered the "noise" term.  If it were zero, we'd have a very well defined $dx = a\,dt$ and could immediately solve to get $x = x_0 + at$.  Moreover, a Wiener process has a variance rate per unit time of 1.0.  It follows, since [variance scales quadratically](#variance-scaling), that "$b$ times a Wiener process" has a variance rate per unit time of $b^2$ (remember, we interpret models in terms of standard deviation but we use variance because it is algebraically simpler to work with).  So, in a generalized Wiener process, Property 1 becomes
 
 $$\Delta x = a\,\Delta t + b \epsilon \sqrt{\Delta t}$$
 
@@ -84,7 +84,6 @@ This would lead to an overall variance over a period $T$ (again splitting it int
 $$\text{Var}(x(T) - x(0)) = N \cdot b^2\, \Delta t^2 = \frac{T}{\Delta t} \cdot b^2\, \Delta t^2 = b^2\, T\, \Delta t$$
 
 which would go to zero as $\Delta t$ goes to zero!  That is to say, we would be able to predict exactly the terminal value of this process and nothing is very interesting-- we would just have a straight line.
-
 
 Ok, but what if we do some other power?  What about the fourth root of $\Delta t$?  In general, let's take a look at
 
@@ -323,11 +322,15 @@ For reference, here is every statistics and probability fact the derivations abo
 
 - **Sums of independent normals are normal:**{: #normal-sums} the normal family is closed under independent addition.  This upgrades "mean $aT$, variance $b^2 T$" to the full distributional statement $x(T) - x(0) \sim \mathcal{N}\left(aT,\ b^2 T\right)$.
 
-- **Mean absolute value of the standard normal:**{: #half-normal-mean} $E\left|\epsilon\right| = \sqrt{2/\pi} \approx 0.798$ -- the mean of the half-normal distribution, obtained by integrating $\lvert x \rvert$ against the standard normal density.  Used in the path-length appendix to compute the expected size of a single step, $E\left|\Delta z\right|$.
+- **Mean absolute value of the standard normal:**{: #half-normal-mean} $E\left|\epsilon\right| = \sqrt{2/\pi} \approx 0.798$ -- the mean of the half-normal distribution.  Without doing the full work, here is the integral it comes from:
 
-## Appendix: Sum of a path on Classic Wiener goes to infinity
+  $$E\left|\epsilon\right| = \int_{-\infty}^{\infty} \lvert x \rvert\, \frac{e^{-x^2/2}}{\sqrt{2\pi}}\, dx = \frac{2}{\sqrt{2\pi}} \int_{0}^{\infty} x\, e^{-x^2/2}\, dx = \frac{2}{\sqrt{2\pi}} \cdot 1 = \sqrt{\frac{2}{\pi}}$$
 
-This is a cool fact that I could not resist writing about but also don't want to give it a full blog post.  Going back to a simple Wiener (not generalized):
+  The density is symmetric, so integrating $\lvert x \rvert$ is twice the positive half; then the substitution $u = x^2/2$ turns the remaining integral into $\int_0^\infty e^{-u}\, du = 1$.  (The $\pi$ is hiding in the density's normalizing constant $\sqrt{2\pi}$ -- *that* one is the famous change-of-coordinates trick, where you square the Gaussian integral and switch to polar coordinates.)  Used in the path-length appendix to compute the expected size of a single step, $E\left|\Delta z\right|$.
+
+## Appendix: The expected path length of a Wiener process is infinite
+
+This is a cool fact that I could not resist writing about, but that I also don't want to give a full blog post.  Going back to a simple Wiener (not generalized):
 
 $$\Delta z = \epsilon \sqrt{\Delta t}$$
 
@@ -342,6 +345,12 @@ Taking expectations, by [linearity](#linearity-of-expectation) and the [mean abs
 $$E[L] = N \cdot \sqrt{\frac{2}{\pi}}\, \sqrt{\Delta t} = \frac{T}{\Delta t} \cdot \sqrt{\frac{2}{\pi}}\, \sqrt{\Delta t} = \sqrt{\frac{2}{\pi}}\, \frac{T}{\sqrt{\Delta t}}$$
 
 which goes to infinity as $\Delta t \to 0$.  So over any interval, no matter how short, the expected distance traveled by a Wiener process is infinite -- even though it only ends up on the order of $\sqrt{T}$ away from where it started.  (In the language of analysis: Wiener paths have unbounded variation.)
+
+Does this survive the generalization $\Delta x = a\,\Delta t + b \epsilon \sqrt{\Delta t}$?  Yes, whenever $b \neq 0$.  Per step, the drift contributes order $\Delta t$ while the noise contributes order $\sqrt{\Delta t}$, so at small scales the noise dominates every step.  Using the reverse triangle inequality, $\lvert X + c \rvert \geq \lvert X \rvert - \lvert c \rvert$:
+
+$$E[L] = \sum_{i=1}^{N} E\left|a\,\Delta t + b \epsilon_i \sqrt{\Delta t}\right| \geq \frac{T}{\Delta t} \left( \lvert b \rvert \sqrt{\frac{2}{\pi}}\, \sqrt{\Delta t} - \lvert a \rvert\, \Delta t \right) = \sqrt{\frac{2}{\pi}}\, \frac{\lvert b \rvert\, T}{\sqrt{\Delta t}} - \lvert a \rvert\, T$$
+
+which still goes to infinity as $\Delta t \to 0$.  The drift can only ever contribute $\lvert a \rvert\, T$ of length in total -- a straight line's worth -- while the noise contributes on the order of $T / \sqrt{\Delta t}$.  Only the degenerate case $b = 0$ has a finite expected path length.
 
 ## Appendix: Sources
 
