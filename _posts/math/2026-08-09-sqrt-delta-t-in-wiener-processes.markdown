@@ -374,8 +374,6 @@ Independence is what killed the second sum, and it has roughly $N^2/2$ terms aga
 
 // TODO:  write another blog post to explore this more.
 
-Fittingly, correlated increments mean past changes predict future ones -- a violation of weak-form market efficiency -- and the Lo-MacKinlay paper from the introduction rejects the random walk by testing exactly whether variance grows linearly with the interval.[^lomackinlay]
-
 ## Appendix: Sources
 
 [^hull]: John C. Hull, *Options, Futures, and Other Derivatives*, Global Edition, 11th ed., Pearson, Figure 13.2, page 321.
