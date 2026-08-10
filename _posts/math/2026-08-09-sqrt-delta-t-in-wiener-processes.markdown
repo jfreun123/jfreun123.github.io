@@ -370,7 +370,7 @@ Property 2 -- independent increments -- is an assumption, and everything in this
 
 $$\text{Var}\left( \sum_{i=1}^{N} \Delta x_i \right) = \sum_{i=1}^{N} \text{Var}(\Delta x_i) + 2 \sum_{i < j} \text{Cov}(\Delta x_i, \Delta x_j)$$
 
-Independence is what killed the second sum, and it has roughly $N^2/2$ terms against the first sum's $N$.  With momentum (positive covariance) the total variance blows up -- in the fully correlated limit it is $b^2 T^2 / \Delta t \to \infty$ as $\Delta t \to 0$ -- and with mean reversion (negative covariance) it saturates below $b^2 T$.  Normality breaks too, since only sums of [*independent* normals](#normal-sums) are guaranteed normal.  And with the variance bookkeeping gone, so is the entire "why $p = 1/2$" argument.
+Independence is what killed the second sum, and it has roughly $N^2/2$ terms against the first sum's $N$.
 
 // TODO:  write another blog post to explore this more.
 
