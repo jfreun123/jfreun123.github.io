@@ -372,13 +372,19 @@ $$\text{Var}\left( \sum_{i=1}^{N} \Delta x_i \right) = \sum_{i=1}^{N} \text{Var}
 
 Independence is what killed the second sum, and it has roughly $N^2/2$ terms against the first sum's $N$.  Two extremes show what those cross terms can do.
 
-**Momentum (positive covariance), taken to the fully correlated limit:**  every step reuses the *same* shock $\epsilon$.  Summing the increments and using $N \sqrt{\Delta t} = \frac{T}{\Delta t} \sqrt{\Delta t} = T / \sqrt{\Delta t}$:
+**Momentum (positive covariance), taken to the fully correlated limit:**  every step reuses the *same* shock $\epsilon$, so the covariance between any two increments is exactly
 
-$$x(T) - x(0) = \sum_{i=1}^{N} \left( a\,\Delta t + b \epsilon \sqrt{\Delta t} \right) = aT + \frac{b T}{\sqrt{\Delta t}}\, \epsilon
-\qquad\Rightarrow\qquad
-\text{Var}(x(T) - x(0)) = \frac{b^2 T^2}{\Delta t} \to \infty$$
+$$\text{Cov}(\Delta x_i, \Delta x_j) = \text{Cov}\left( b \epsilon \sqrt{\Delta t},\ b \epsilon \sqrt{\Delta t} \right) = b^2\, \Delta t \cdot \text{Var}(\epsilon) = b^2\, \Delta t \qquad (i \neq j)$$
 
-as $\Delta t \to 0$.  The formula above gives the same number as $N^2 \cdot b^2\, \Delta t$:  every one of the $\sim N^2/2$ covariance terms equals the shared $b^2\, \Delta t$, so the cross terms contribute $N$ times more than the $N$ variance terms do.
+where the drift terms $a\,\Delta t$ dropped out because constants do not move covariances.  Now sum the increments, substituting $N = T / \Delta t$:
+
+$$x(T) - x(0) = \sum_{i=1}^{N} \left( a\,\Delta t + b \epsilon \sqrt{\Delta t} \right) = N\, a\,\Delta t + N\, b\, \epsilon \sqrt{\Delta t} = \frac{T}{\Delta t}\, a\,\Delta t + \frac{T}{\Delta t}\, b\, \epsilon \sqrt{\Delta t} = aT + \frac{b T}{\sqrt{\Delta t}}\, \epsilon$$
+
+using $\frac{\sqrt{\Delta t}}{\Delta t} = \Delta t^{1/2 - 1} = \frac{1}{\sqrt{\Delta t}}$ in the last step.  The result is a constant plus a constant times a single $\epsilon$, so since [variance scales quadratically](#variance-scaling),
+
+$$\text{Var}(x(T) - x(0)) = \left( \frac{b T}{\sqrt{\Delta t}} \right)^2 \text{Var}(\epsilon) = \frac{b^2 T^2}{\Delta t} \to \infty \quad \text{as } \Delta t \to 0$$
+
+The covariance formula above arrives at the same number:  the second sum has $\frac{N(N-1)}{2}$ pairs, each contributing the $b^2\, \Delta t$ computed at the start, giving $2 \cdot \frac{N(N-1)}{2} \cdot b^2\, \Delta t \approx N^2\, b^2\, \Delta t = \frac{b^2 T^2}{\Delta t}$ -- which is $N$ times more than the first sum's $N \cdot b^2\, \Delta t = b^2 T$.
 
 **Mean reversion (negative covariance):**  let each step pull back toward a long-run level (here 0) with strength $\kappa$, so that with $\phi = 1 - \kappa\,\Delta t$,
 
