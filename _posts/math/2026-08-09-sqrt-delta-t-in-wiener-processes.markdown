@@ -370,35 +370,9 @@ Property 2 -- independent increments -- is an assumption, and everything in this
 
 $$\text{Var}\left( \sum_{i=1}^{N} \Delta x_i \right) = \sum_{i=1}^{N} \text{Var}(\Delta x_i) + 2 \sum_{i < j} \text{Cov}(\Delta x_i, \Delta x_j)$$
 
-Independence is what killed the second sum, and it has roughly $N^2/2$ terms against the first sum's $N$.  Two extremes show what those cross terms can do.
+Independence is what killed the second sum, and it has roughly $N^2/2$ terms against the first sum's $N$.  With momentum (positive covariance) the total variance blows up -- in the fully correlated limit it is $b^2 T^2 / \Delta t \to \infty$ as $\Delta t \to 0$ -- and with mean reversion (negative covariance) it saturates below $b^2 T$.  Normality breaks too, since only sums of [*independent* normals](#normal-sums) are guaranteed normal.  And with the variance bookkeeping gone, so is the entire "why $p = 1/2$" argument.
 
-**Momentum (positive covariance), taken to the fully correlated limit:**  every step reuses the *same* shock $\epsilon$, so the covariance between any two increments is exactly
-
-$$\text{Cov}(\Delta x_i, \Delta x_j) = \text{Cov}\left( b \epsilon \sqrt{\Delta t},\ b \epsilon \sqrt{\Delta t} \right) = b^2\, \Delta t \cdot \text{Var}(\epsilon) = b^2\, \Delta t \qquad (i \neq j)$$
-
-where the drift terms $a\,\Delta t$ dropped out because constants do not move covariances.  Now sum the increments, substituting $N = T / \Delta t$:
-
-$$x(T) - x(0) = \sum_{i=1}^{N} \left( a\,\Delta t + b \epsilon \sqrt{\Delta t} \right) = N\, a\,\Delta t + N\, b\, \epsilon \sqrt{\Delta t} = \frac{T}{\Delta t}\, a\,\Delta t + \frac{T}{\Delta t}\, b\, \epsilon \sqrt{\Delta t} = aT + \frac{b T}{\sqrt{\Delta t}}\, \epsilon$$
-
-using $\frac{\sqrt{\Delta t}}{\Delta t} = \Delta t^{1/2 - 1} = \frac{1}{\sqrt{\Delta t}}$ in the last step.  The result is a constant plus a constant times a single $\epsilon$, so since [variance scales quadratically](#variance-scaling),
-
-$$\text{Var}(x(T) - x(0)) = \left( \frac{b T}{\sqrt{\Delta t}} \right)^2 \text{Var}(\epsilon) = \frac{b^2 T^2}{\Delta t} \to \infty \quad \text{as } \Delta t \to 0$$
-
-The covariance formula above arrives at the same number:  the second sum has $\frac{N(N-1)}{2}$ pairs, each contributing the $b^2\, \Delta t$ computed at the start, giving $2 \cdot \frac{N(N-1)}{2} \cdot b^2\, \Delta t \approx N^2\, b^2\, \Delta t = \frac{b^2 T^2}{\Delta t}$ -- which is $N$ times more than the first sum's $N \cdot b^2\, \Delta t = b^2 T$.
-
-**Mean reversion (negative covariance):**  let each step pull back toward a long-run level (here 0) with strength $\kappa$, so that with $\phi = 1 - \kappa\,\Delta t$,
-
-$$x_{i+1} = \phi\, x_i + b \epsilon_i \sqrt{\Delta t}
-\qquad\Rightarrow\qquad
-x_N = b \sqrt{\Delta t} \sum_{i=1}^{N} \phi^{\,N-i}\, \epsilon_i$$
-
-The increment $-\kappa\,\Delta t\, x_i + b \epsilon_i \sqrt{\Delta t}$ depends on the current level, so past shocks correlate negatively with future increments (Property 2 fails) even though the process is perfectly Markov.  The shocks themselves are independent, so variances add with squared coefficients -- a geometric series -- and with $1 - \phi^2 \approx 2 \kappa\, \Delta t$ and $\phi^{2N} \to e^{-2 \kappa T}$ as $\Delta t \to 0$:
-
-$$\text{Var}(x(T)) = b^2\, \Delta t\, \frac{1 - \phi^{2N}}{1 - \phi^2} \to \frac{b^2}{2 \kappa} \left( 1 - e^{-2 \kappa T} \right)$$
-
-For small $T$ this is $\approx b^2 T$ (locally it looks exactly like a Wiener process), but since $1 - e^{-x} < x$ it sits below $b^2 T$ everywhere, and as $T \to \infty$ it saturates at the ceiling $b^2 / 2\kappa$ instead of growing without bound.
-
-So momentum makes the cross terms *add* to the first sum and mean reversion makes them *cancel* it; independence is the knife-edge in between where variance grows exactly linearly.  Normality breaks too, since only sums of [*independent* normals](#normal-sums) are guaranteed normal.  And with the variance bookkeeping gone, so is the entire "why $p = 1/2$" argument.
+// TODO:  write another blog post to explore this more.
 
 Fittingly, correlated increments mean past changes predict future ones -- a violation of weak-form market efficiency -- and the Lo-MacKinlay paper from the introduction rejects the random walk by testing exactly whether variance grows linearly with the interval.[^lomackinlay]
 
