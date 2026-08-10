@@ -360,6 +360,20 @@ $$E[L] = \sum_{i=1}^{N} E\left|a\,\Delta t + b \epsilon_i \sqrt{\Delta t}\right|
 
 which still goes to infinity as $\Delta t \to 0$.  The drift can only ever contribute $\lvert a \rvert\, T$ of length in total -- a straight line's worth -- while the noise contributes on the order of $T / \sqrt{\Delta t}$.  Only the degenerate case $b = 0$ has a finite expected path length.
 
+## Appendix: What breaks without Property 2
+
+Property 2 -- independent increments -- is an assumption, and everything in this post leans on it.  (It is not the same as the Markov property:  a mean-reverting process is perfectly Markov, yet its increments are correlated.)  If we drop it:
+
+**What survives.**  Anything built on [linearity of expectation](#linearity-of-expectation), which holds unconditionally:  the per-step facts, and the drift $E[x(T) - x(0)] = aT$.
+
+**What breaks.**  [Variances add](#variances-add) only when the covariances vanish.  In general,
+
+$$\text{Var}\left( \sum_{i=1}^{N} \Delta x_i \right) = \sum_{i=1}^{N} \text{Var}(\Delta x_i) + 2 \sum_{i < j} \text{Cov}(\Delta x_i, \Delta x_j)$$
+
+Independence is what killed the second sum, and it has roughly $N^2/2$ terms against the first sum's $N$.  With momentum (positive covariance) the total variance blows up -- in the fully correlated limit it is $b^2 T^2 / \Delta t \to \infty$ as $\Delta t \to 0$ -- and with mean reversion (negative covariance) it saturates below $b^2 T$.  Normality breaks too, since only sums of [*independent* normals](#normal-sums) are guaranteed normal.  And with the variance bookkeeping gone, so is the entire "why $p = 1/2$" argument.
+
+Fittingly, correlated increments mean past changes predict future ones -- a violation of weak-form market efficiency -- and the Lo-MacKinlay paper from the introduction rejects the random walk by testing exactly whether variance grows linearly with the interval.[^lomackinlay]
+
 ## Appendix: Sources
 
 [^hull]: John C. Hull, *Options, Futures, and Other Derivatives*, Global Edition, 11th ed., Pearson, Figure 13.2, page 321.
