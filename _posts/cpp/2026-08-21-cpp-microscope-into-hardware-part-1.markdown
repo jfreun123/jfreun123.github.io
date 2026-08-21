@@ -64,6 +64,8 @@ R^G^P^W^@^@^B.^@?^Y^C^N:^K;^K9^Kn^NI^S^Q^A^R^G@^Xz^Y^@^@^C$^@^K^K>^K^C^H
 ...
 ```
 
+But why is the object dump so not human readable?  It was never meant to be human readable and is worth a blog of its own.
+
 We can then interpret that as binary as this
 
 ```bash
