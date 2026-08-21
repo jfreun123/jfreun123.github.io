@@ -14,6 +14,48 @@ Queues are a fundamental building block for proper system designs.  By decouplin
 
 However, it is *really* easy to design queues improperly that greatly limit performance.  A more performant queue leads to a higher service rate which helps deter against back pressure-- that is, the more performant the queue the less dropped packages.
 
+To start creating a Queue, let's specify the qualities we are currently interested in:
+
+1.  Bounded (we don't want this Queue blowing up memory and having someone in DevOps asking us what is going on)
+2.  Blocking?  (come back on this TODO)
+3.  Single Producer, Multiple Consumers
+4.  Variable length message size, this means our protocol will involve first send some int32_t to represent the size of the message we are sending and then the actual message.
+5.  Work stealing -- Fan out is easier and does not require CAS.  For the purpose of education, we should do it the hard way.
+6.  Type Support:  plain old data.
+
+Also, in our design of our Queue, we are going to be friendly to possible shared memory applications.  This means our Queue will have some modularity between the the Producer, the Consumer, and the writiers and buffers themselves.  
+
+To start, we will use the naive (and inefficient) (TODO:  apply the "direct" write to the queue instead of this API) API:
+
+```
+// A QueueProducer can write a span of bytes into the queue.
+template <typename P>
+concept QueueProducer = requires(P p, std::span<const std::byte> buf) {
+  p.Write(buf);
+};
+```
+
+```
+// A QueueConsumer reads the next message into a caller-provided span,
+// returning the number of bytes read (0 if the queue is empty).
+template <typename C>
+concept QueueConsumer = requires(C c, std::span<std::byte> buf) {
+  { c.TryRead(buf) } -> std::same_as<int32_t>;
+};
+```
+With that out of the way, let's get to our first Queue and *use* locks.
+
+```
+struct SlowQueue {
+  mutable std::mutex mutex;
+  uint64_t writeOffset{0};
+  uint64_t readOffset{0};
+
+  [[nodiscard]] uint8_t *buffer() noexcept {
+    return reinterpret_cast<uint8_t *>(this) + sizeof(SlowQueue);
+  }
+};
+```
 
 
 Resources:

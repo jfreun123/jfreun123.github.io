@@ -1,0 +1,154 @@
+---
+layout: post
+title:  "On Cache Coherency and Contention"
+date:   2026-07-31 16:28:00 -0400
+categories: cpp
+---
+
+Thread synchronization is required in a variety of practical programs.  For instance, MPSC (multi-producer, single-consumer) requires some sort of synchronization to avoid corrupting shared data.  Recently, in a project where each thread was recording the start time of some shared work in a hot loop, having a rough understanding of synchronization allowed me to get an immediate performance boost (and annoying bug fix) by switching the following:
+
+```cpp
+using Time = long;
+struct Clock { static Time now(); };
+
+static constexpr Time INIT = std::numeric_limits<Time>::lowest();
+std::atomic<Time> startTime_{INIT};  // member variable
+Time expected_{INIT};                // member variable
+
+auto doWork(auto&& func) -> decltype(func()) {
+    startTime_.compare_exchange_strong(expected_, Clock::now());
+    return func();
+}
+```
+
+to:
+
+```cpp
+using Time = long;
+struct Clock { static Time now(); };
+
+static constexpr Time INIT = std::numeric_limits<Time>::lowest();
+std::atomic<Time> startTime_{INIT};  // member variable
+
+auto doWork(auto&& func) -> decltype(func()) {
+    if (INIT == startTime_.load(std::memory_order_relaxed)) {
+        Time expected = INIT;
+        startTime_.compare_exchange_strong(expected, Clock::now());
+    }
+    return func();
+}
+```
+(Why not CAS here?  Saving it for another blog post...)
+
+Given 64 threads on a beefy machine (with an unrealistic no-op amount of work), this allowed for 10x more "work" to be done.  The key to this performance gain is in understanding MESI (Modified, Exclusive, Shared, Invalid).  In a very rough picture of a multicore CPU (Intel Core i7), we see that the processor package has something that looks like:
+
+![The Core i7 memory system](/assets/images/core-i7-memory-hierarchy.png)
+
+*Figure from Computer Systems: A Programmer's Perspective.*[^csapp]
+
+So, when one core updates its cache line, every other core's copy of that cache line is invalidated.  In general, a transfer happens when a cache line's dirty bit is set in another processor.  Moreover, one core can determine if a dirty bit was set in another core's cache line via the MESI protocol.
+
+![Two cores incrementing x in their own caches while a third reads x=2 from main memory](/assets/images/cache-incoherence-pikus.jpg)
+
+*Figure from Fedor Pikus's CppCon 2017 talk.*[^pikus]
+
+For the MESI protocol, initially, all cache lines are empty and hence invalid.  From there:
+
+1. If data is loaded into the cache for writing, the cache line changes to Modified (M).
+2. If data is loaded for reading, the cache line is considered Shared (S) if another processor has the same cache line---otherwise it is Exclusive (E).
+
+For one example of what this looks like:
+
+1. If a cache line is Modified and is read from or written to by the local core, the instruction can just use the current cache content and the state does not change.
+2. If, however, a second core wants to read the same cache line that the first core just wrote to, then the first core needs to send the content of its cache to the second processor, and then it can change the state to Shared.
+3. Moreover, if the second core wanted to *write* to the same cache line, then the first core would send its content to the second core and the first core would mark its content locally invalid---this is a case of RFO ("Request for Ownership").
+
+This case, where two cores are writing to the same cache line, is horrifically expensive.[^drepper]
+
+In summary:
+
+| Request | Others have the line? | Requester ends up | Others end up | The line's dirty bit (at most one cache can hold a line dirty) |
+|---|---|---|---|---|
+| Plain read | No | E (Exclusive) | — | clean everywhere (memory is up to date) |
+| Plain read | Yes (clean) | S (Shared) | stay S | clean everywhere |
+| Plain read | Yes (dirty, M) | S (Shared) | M → S (+ writeback to memory) | cleared *in the old owner's cache* — the writeback re-syncs memory |
+| RFO (write intent) | Either way | E → M (Modified) | I (Invalid) | set *in the requester's cache* the moment its store lands (M *is* the dirty bit) |
+
+Note that the others end up Invalid, but an actual cache line update never happens unless some other core tries to read that variable.  In that case, a sync-up would happen (which would also be expensive).  So, on a write, every other core's copy gets marked as I---but that mark may not ever mean anything...
+
+(How does one core know another core wants its data?  The short answer is "snooping": every cache controller watches the interconnect for addresses it holds.  But this post is getting long---snooping and the other hardware-level details of MESI deserve their own post...)
+
+So when the first core writes a cache line, the effort is not necessarily in copying the 64-byte cache line.  The effort is in finding the owner, coordinating with it, and waiting for the MESI protocol to complete to ensure that we have exclusive ownership and can correctly write.
+
+Finally, to understand why the first `compare_exchange_strong` was so problematic, it's important to know what it does under the hood.  Firstly, `compare_exchange_strong` (CES) executes as a single atomic operation (on real hardware it is a single instruction, like x86's `lock cmpxchg`).
+
+```cpp
+bool compare_exchange_strong(int *value, int &expected, int new_value){
+    int temp = *value;
+    if (temp == expected){
+        *value = new_value;
+        return true;
+    }
+    expected = temp;
+    return false;
+}
+```
+
+*Code adapted from the Core Dumped video.*[^coredumped]
+
+
+So, regardless of whether we write to our target `value`, we still issue an RFO because `compare_exchange_strong` is an atomic operation.  Moreover, on failure, each CES writes into the shared `expected_`'s cache line---doubling the MESI avalanche.  The second version is so much faster because it sidesteps this wall entirely---with a simple read we avoid any write at all.
+
+This pattern of checking the read (in a relaxed, non-hardware-fencing way) is so powerful that it even made its way into Fedor Pikus's implementation of an efficient spinlock.  A slow spinlock may look like this:
+
+
+```cpp
+class Spinlock {
+  public:
+  void lock() {
+    while (flag_.exchange(1, std::memory_order_acquire)) {}
+  }
+  void unlock() { flag_.store(0, std::memory_order_release); }
+  private:
+  std::atomic<unsigned int> flag_;
+};
+```
+
+*Code from The Art of Writing Efficient Programs.*[^pikusbook]
+
+Note that `exchange` just exchanges the value and returns the previous value.  So, if `flag_` is 0 and we call `lock()`, then `exchange` returns 0, we break out of the loop, and `flag_` is set to 1.  If the flag is already locked, with a value of 1, then we continuously try exchanging 1 with 1 and spin in the while loop.  However, this implementation has terrible performance because we keep trying to write the value 1 to `flag_` even if there is nothing to replace.  That is, we keep writing to the same cache line, and this lock, in any normal use case, would be accessed from multiple threads, causing an avalanche of MESI exclusive access requests.  
+
+
+
+```cpp
+class Spinlock {
+  void lock() {
+    for (int i=0; flag_.load(std::memory_order_relaxed) ||
+        flag_.exchange(1, std::memory_order_acquire); ++i) {
+      if (i == 8) {
+        lock_sleep();
+        i = 0;
+      }
+    }
+  }
+  void lock_sleep() {
+    static const timespec ns = { 0, 1 }; // 1 nanosecond
+    nanosleep(&ns, NULL);
+  }
+}
+```
+
+*Code from The Art of Writing Efficient Programs.*[^pikusbook]
+
+(Ignore the `lock_sleep` optimization for this blog---after every 8 failed attempts we nap instead of burning the core, which helps the OS schedule some other, more relevant work.)
+
+This is a similar pattern to before:  we are doing an additional cheap read to avoid a more expensive write and the resulting avalanche of MESI exclusive access requests.
+
+For yet another example of this type of optimization, we can defer to a 2009 paper on an efficient ring buffer design.[^mcring]  In that design, the researchers found that having the producer and consumer keep their own local copy of where the other's read/write index is (which only gets updated when absolutely necessary) prevents yet another avalanche of MESI exclusive access requests and yields a giant (up to 4.9x) increase in throughput.  It is an incredibly impressive and elegant result and worth exploring in another blog post.
+
+[^csapp]: Randal E. Bryant, *Computer Systems: A Programmer's Perspective*, section 9.7, page 862.
+[^pikus]: Fedor Pikus, ["C++ atomics, from basic to advanced. What do they really do?"](https://www.youtube.com/watch?v=ZQFzMfHIxng), CppCon 2017.
+[^pikusbook]: Fedor Pikus, *The Art of Writing Efficient Programs*, Packt Publishing, 2021, page 210.
+[^coredumped]: Core Dumped, [How Hardware Makes Threads Less of a Nightmare](https://www.youtube.com/watch?v=IMceN4_rieo).
+[^drepper]: Ulrich Drepper, [What Every Programmer Should Know About Memory](https://www.akkadia.org/drepper/cpumemory.pdf), section 3.3.4, "Multi-Processor Support."
+[^mcring]: Patrick P. C. Lee, Tian Bu, and Girish Chandranmenon, ["A Lock-Free, Cache-Efficient Shared Ring Buffer for Multi-Core Architectures"](https://dl.acm.org/doi/10.1145/1882486.1882508), ANCS 2009.
