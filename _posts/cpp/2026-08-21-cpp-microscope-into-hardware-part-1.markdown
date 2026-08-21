@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "C++ as a Microscope Into Hardware, Part 1"
+title:  "C++ as a Microscope Into Hardware, Part 1 (Assembly)"
 date:   2026-08-21 00:00:00 -0400
 categories: cpp
 series: "C++ as a Microscope Into Hardware"
@@ -181,8 +181,16 @@ There are a few interesting things happening here.  Step by step:
 
    After: `rsp=0x7fffffffea08`, `rbp=0x1` (the caller's, restored), `rip` back in libc's startup code, `eax=0x0` on its way to becoming our exit code
 
+We can keep going to explore more and more binaries but that is tedious.  Instead, we can just analyze gcc itself
+```bash
+objdump -d $(which gcc)
+```
 
+Here, we can get analysis with what registers are most often used and what are the conventions (caller vs callee) and something similar for instructions.  Interestingly, for instructions, `mov` is by FAR the most common instruction.  In fact, the top 12 instructions account for roughly 75% of instructions used!  You do not need to know *that* much assembly to get around reading assembly.
 
+For a more crazy fact, you only need `mov` to be Turing complete (see Appendix 2).  In the cppnow talk, Linus Boehm has a great objdump of using a `mov` only compiler to compile a general `find_primes` function that takes 3-4 thousand lines with `mov` only and only 52 with the full instruction set.  Evidently, `mov` only compilers offer horrific performance.
+
+This blog post is already fairly long and we are only 15 minutes in...will need many more posts.
 ## Appendix 1:  What is this other stuff in my disassembly
 
 Our disassembly is actually even more complicated.  It does not just contain `0000000000401111 <main>:` and `0000000000401106 <return_zero()>:`, we also have:
@@ -199,6 +207,12 @@ Our disassembly is actually even more complicated.  It does not just contain `00
 This is a far longer discussion and worth another blog of my own.
 
 For a similar analysis, look at this other [great blog](https://oneraynyday.github.io/dev/2020/05/03/Analyzing-The-Simplest-C++-Program/)
+
+## Appendix 2:  mov is all you need
+
+- [mov is Turing-complete (PDF), Stephen Dolan](https://drwho.virtadpt.net/files/mov.pdf): the proof that x86's `mov` (plus a single jump to loop) can compute anything.
+- [M/o/Vfuscator](https://github.com/xoreaxeaxeax/movfuscator): Christopher Domas's C compiler that emits only `mov` instructions-- the compiler behind the `find_primes` demo in the talk.
+
 ## Resources:
 
 - [C++ as a Microscope Into Hardware - Linus Boehm - C++Now 2025 (YouTube)](https://www.youtube.com/watch?v=KFe6LCcDjL8)
