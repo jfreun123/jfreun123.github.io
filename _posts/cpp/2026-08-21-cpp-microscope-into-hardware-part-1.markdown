@@ -7,6 +7,8 @@ series: "C++ as a Microscope Into Hardware"
 part: 1
 ---
 
+*The following was written by me, but reviewed by Claude for grammar and general mistakes.*
+
 *This is Part 1 of a series on Linus Boehm's C++Now 2025 talk, [C++ as a Microscope Into Hardware](https://www.youtube.com/watch?v=KFe6LCcDjL8).*
 
 This is one of the best C++ talks available on YouTube-- even with the awful audio and microphone sensitivity.  Almost everything mentioned here is worth a full talk or at least a deeper exploration-- a deeper exploration I'd like to explore in a series of blogs.
@@ -118,8 +120,85 @@ Let's focus on this
 Here, mov is defined as `mov <destination> <value>` and is actually a copy.  So, we are copying the hex value 0x0 (which is just 0) into register `eax` which is just the 32-bit return register.  What about `b8 00 00 00 00`?  These five bytes (one hex is 4 bits and there are 10 hex numbers here) detail the instruction and the argument!  For instance, `b8` in hex translates to `10111000` which directly appears in the previous raw binary dump.  Moreover, if we compiled with gcc at `-O2` we would've seen `xor eax, eax` which has the same effect but is only 2 bytes instead of 5 bytes-- that optimization relieves pressure on the instruction cache.
 
 
+Now, what if we called this function?  Let's add a simple main
+```cpp
+int return_zero();
+
+int main() {
+    return return_zero();
+}
+```
+
+([main.cpp](https://github.com/jfreun123/cpp_study/blob/main/blog/cpp_microscope_into_hardware/main.cpp)-- it lives in its own file, so it needs the declaration; if both functions shared a file, gcc would inline the call away even at `-O1`)
+
+Once we compile and dump with `-O0` (as can be confirmed by adjusting the compiler explorer view above to `-O0` instead of `-O1`), we will see:
+
+```bash
+g++ -g -O0 return_zero.cpp main.cpp -o return_zero
+objdump -d -C -M intel return_zero
+```
+
+```
+0000000000401106 <return_zero()>:
+  401106:       55                      push   rbp
+  401107:       48 89 e5                mov    rbp,rsp
+  40110a:       b8 00 00 00 00          mov    eax,0x0
+  40110f:       5d                      pop    rbp
+  401110:       c3                      ret
+
+0000000000401111 <main>:
+  401111:       55                      push   rbp
+  401112:       48 89 e5                mov    rbp,rsp
+  401115:       e8 ec ff ff ff          call   401106 <return_zero()>
+  40111a:       90                      nop
+  40111b:       5d                      pop    rbp
+  40111c:       c3                      ret
+  ```
+
+There are a few interesting things happening here.  Step by step:
+
+1. When `main` is entered, before we ever reach our call, we push (and save) the caller's base pointer `rbp` (the register that anchors the current function's variables on the stack) and then move our stack pointer `rsp` into `rbp`.  `rbp` now holds `main`'s frame.
+
+   After: `rip=0x401115` (our `call`), `rsp=0x7fffffffea00`, `rbp=0x7fffffffea00`, stack top holds the caller's saved `rbp`
+
+2. When we `call return_zero()`, the CPU pushes the return address onto the stack (the address of the next instruction in `main`, here `40111a`) and jumps to `401106`.
+
+   After: `rip=0x401106`, `rsp=0x7fffffffe9f8`, `rbp=0x7fffffffea00` (unchanged!), stack top holds `0x40111a` (the return address)
+
+3. `return_zero()` runs a similar prologue: it pushes `rbp` (saving `main`'s base pointer) and moves `rsp` into `rbp` to anchor its own frame.
+
+   After: `rip=0x40110a`, `rsp=0x7fffffffe9f0`, `rbp=0x7fffffffe9f0`, stack top holds `0x7fffffffea00` (`main`'s saved `rbp`)
+
+4. The actual work happens: `mov eax,0x0`.
+
+   After: `eax=0x0` (before this it held leftover garbage, `0x401111`); `rsp`, `rbp`, and the stack are untouched
+
+5. Once the work is done, `return_zero()` pops `rbp` off of the stack (restoring `main`'s base pointer) and `ret` pops the return address back into the instruction pointer `rip`-- execution lands on the `nop` in `main`.
+
+   After: `rip=0x40111a` (the `nop`), `rsp=0x7fffffffea00`, `rbp=0x7fffffffea00`-- exactly the state at the end of step 1
+
+6. `main`'s own epilogue mirrors this: `pop rbp`, then `ret`.  Whatever is in `eax` (our 0) becomes `main`'s return value.
+
+   After: `rsp=0x7fffffffea08`, `rbp=0x1` (the caller's, restored), `rip` back in libc's startup code, `eax=0x0` on its way to becoming our exit code
 
 
+
+## Appendix 1:  What is this other stuff in my disassembly
+
+Our disassembly is actually even more complicated.  It does not just contain `0000000000401111 <main>:` and `0000000000401106 <return_zero()>:`, we also have:
+
+- `_init` (section `.init`): a small initialization stub glibc runs before `main`-- the historical home of global-constructor glue, kept around for compatibility.
+- `_start` (section `.text`): the program's true entry point.  The kernel hands control here, not to `main`-- it sets up the stack per the ABI and calls glibc's `__libc_start_main`, which calls `main` and then calls `exit()` with whatever `main` left in `eax`.
+- `_dl_relocate_static_pie`: a self-relocation helper that is a no-op here-- it only does real work in static position-independent (static-PIE) builds.
+- `deregister_tm_clones` and `register_tm_clones`: hooks for gcc's transactional-memory runtime (libitm)-- effectively no-ops unless that feature is used.
+- `__do_global_dtors_aux`: runs global/static destructors during a normal exit.
+- `frame_dummy`: runs before `main` to register the stack-unwinding tables used for C++ exceptions.
+- `return_zero()` and `main`: the only two functions we actually wrote.
+- `_fini` (section `.fini`): the teardown twin of `_init`, run at exit.
+
+This is a far longer discussion and worth another blog of my own.
+
+For a similar analysis, look at this other [great blog](https://oneraynyday.github.io/dev/2020/05/03/Analyzing-The-Simplest-C++-Program/)
 ## Resources:
 
 - [C++ as a Microscope Into Hardware - Linus Boehm - C++Now 2025 (YouTube)](https://www.youtube.com/watch?v=KFe6LCcDjL8)
