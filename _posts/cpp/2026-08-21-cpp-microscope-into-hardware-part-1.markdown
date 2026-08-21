@@ -188,7 +188,7 @@ objdump -d $(which gcc)
 
 Here, we can get analysis with what registers are most often used and what are the conventions (caller vs callee) and something similar for instructions.  Interestingly, for instructions, `mov` is by FAR the most common instruction.  In fact, the top 12 instructions account for roughly 75% of instructions used!  You do not need to know *that* much assembly to get around reading assembly.
 
-For a more crazy fact, you only need `mov` to be Turing complete (see Appendix 2).  In the cppnow talk, Linus Boehm has a great objdump of using a `mov` only compiler to compile a general `find_primes` function that takes 3-4 thousand lines with `mov` only and only 52 with the full instruction set.  Evidently, `mov` only compilers offer horrific performance.
+For a more crazy fact, you only need `mov` to be Turing complete (see Resources).  In the cppnow talk, Linus Boehm has a great objdump of using a `mov` only compiler to compile a general `find_primes` function that takes 3-4 thousand lines with `mov` only and only 52 with the full instruction set.  Evidently, `mov` only compilers offer horrific performance.
 
 This blog post is already fairly long and we are only 15 minutes in...will need many more posts.
 ## Appendix 1:  What is this other stuff in my disassembly
@@ -208,13 +208,64 @@ This is a far longer discussion and worth another blog of my own.
 
 For a similar analysis, look at this other [great blog](https://oneraynyday.github.io/dev/2020/05/03/Analyzing-The-Simplest-C++-Program/)
 
-## Appendix 2:  mov is all you need
+## Appendix 2:  Recreating the gcc instruction analysis
 
-- [mov is Turing-complete (PDF), Stephen Dolan](https://drwho.virtadpt.net/files/mov.pdf): the proof that x86's `mov` (plus a single jump to loop) can compute anything.
-- [M/o/Vfuscator](https://github.com/xoreaxeaxeax/movfuscator): Christopher Domas's C compiler that emits only `mov` instructions-- the compiler behind the `find_primes` demo in the talk.
+([analyze_instructions.py](https://github.com/jfreun123/cpp_study/blob/main/blog/cpp_microscope_into_hardware/analyze_instructions.py) in my [cpp_study](https://github.com/jfreun123/cpp_study) repo)
+
+```python
+import collections
+import shutil
+import subprocess
+import sys
+
+target = sys.argv[1] if len(sys.argv) > 1 else shutil.which("gcc")
+asm = subprocess.run(["objdump", "-d", target], capture_output=True, text=True, check=True).stdout
+
+counts = collections.Counter()
+for line in asm.splitlines():
+    # instruction lines look like: "  401106:<tab>55<tab>push   rbp"
+    parts = line.split("\t")
+    if len(parts) >= 3:
+        mnemonic = parts[2].split()[0]
+        counts[mnemonic] += 1
+
+total = sum(counts.values())
+print(f"{target}: {total} instructions, {len(counts)} distinct mnemonics\n")
+
+top = counts.most_common(12)
+for mnemonic, n in top:
+    print(f"{mnemonic:8} {n:8}  {100 * n / total:5.1f}%")
+
+print(f"\ntop 12 = {100 * sum(n for _, n in top) / total:.1f}% of all instructions")
+```
+
+```bash
+docker run --rm -v "$PWD":/work -w /work gcc:15 python3 analyze_instructions.py
+```
+
+```
+/usr/local/bin/gcc: 225790 instructions, 165 distinct mnemonics
+
+mov         75308   33.4%
+call        12135    5.4%
+cmp         10545    4.7%
+je          10479    4.6%
+jmp          9700    4.3%
+test         8885    3.9%
+lea          7944    3.5%
+add          7835    3.5%
+push         7668    3.4%
+jne          6765    3.0%
+xor          6586    2.9%
+pop          6500    2.9%
+
+top 12 = 75.4% of all instructions
+```
 
 ## Resources:
 
 - [C++ as a Microscope Into Hardware - Linus Boehm - C++Now 2025 (YouTube)](https://www.youtube.com/watch?v=KFe6LCcDjL8)
 - [Slides (PDF, official C++Now 2025 repo)](https://github.com/boostcon/cppnow_presentations_2025/blob/main/Presentations/Cpp_as_a_Microscope_Into_Hardware.pdf)
 - [Intel® 64 and IA-32 Architectures Software Developer's Manual, Combined Volumes 1-4 (PDF; Volume 2 is the instruction set reference)](https://cdrdv2.intel.com/v1/dl/getContent/671200)
+- [mov is Turing-complete (PDF), Stephen Dolan](https://drwho.virtadpt.net/files/mov.pdf): the proof that x86's `mov` (plus a single jump to loop) can compute anything.
+- [M/o/Vfuscator](https://github.com/xoreaxeaxeax/movfuscator): Christopher Domas's C compiler that emits only `mov` instructions-- the compiler behind the `find_primes` demo in the talk.
