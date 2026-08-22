@@ -157,6 +157,15 @@ objdump -d -C -M intel return_zero
   40111c:       c3                      ret
   ```
 
+With the following register meanings
+
+| Register | What it holds |
+|----------|---------------|
+| `rip` | The instruction pointer: the address of the next instruction the CPU will execute.  No instruction writes it directly-- `call`, `ret`, and jumps change it. |
+| `rsp` | The stack pointer: the address of the current top of the stack.  The stack grows downward, so `push` subtracts 8 and `pop` adds 8. |
+| `rbp` | The base pointer (frame pointer): anchors the current function's stack frame, so locals and saved state sit at fixed offsets from it. |
+| `eax` | The lower 32 bits of `rax`, the register the x86-64 ABI uses for return values.  Writing `eax` also zeroes the upper 32 bits of `rax`. |
+
 There are a few interesting things happening here.  Step by step:
 
 1. When `main` is entered, before we ever reach our call, we push (and save) the caller's base pointer `rbp` (the register that anchors the current function's variables on the stack) and then move our stack pointer `rsp` into `rbp`.  `rbp` now holds `main`'s frame.
@@ -263,6 +272,18 @@ pop          6500    2.9%
 
 top 12 = 75.4% of all instructions
 ```
+
+## Appendix 3:  Breaking down the call instruction
+
+```
+  401115:       e8 ec ff ff ff          call   401106 <return_zero()>
+```
+
+- `call` does two things as one instruction: (1) pushes the address of the *next* instruction (`0x40111a`) onto the stack (`rsp -= 8`, then write), (2) sets `rip` to the target.  Morally it is `push 0x40111a` + `jmp 0x401106` fused together.
+- Encoding: opcode `e8` means "call rel32"-- the four bytes after it are a signed 32-bit displacement, stored little-endian: `ec ff ff ff` read back-to-front is `0xffffffec`, which as a signed number is `-0x14` (-20).
+- The displacement is relative to the NEXT instruction, not the call itself: `0x40111a + (-0x14) = 0x401106`.  `return_zero()` sits exactly 20 bytes before the `nop`.  The absolute address 0x401106 appears nowhere in the machine code.
+- Because the target is stored relative, the code still works if the whole block is loaded at a different address-- nothing needs patching.
+- `ret` (`c3`) is the exact inverse: it pops the top of the stack into `rip`.  call/ret are a matched pair around the stack.
 
 ## Resources:
 
