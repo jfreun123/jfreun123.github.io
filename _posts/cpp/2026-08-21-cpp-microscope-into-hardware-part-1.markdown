@@ -214,6 +214,7 @@ For a more crazy fact, you only need `mov` to be Turing complete (see Resources)
 This blog post is already fairly long and we are only 15 minutes in...will need many more posts.
 
 Next up we will talk about memory.
+
 ## Appendix 1:  What is this other stuff in my disassembly
 
 Our disassembly is actually even more complicated.  It does not just contain `0000000000401111 <main>:` and `0000000000401106 <return_zero()>:`, we also have:
