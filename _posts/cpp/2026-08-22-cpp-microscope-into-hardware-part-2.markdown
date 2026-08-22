@@ -409,7 +409,7 @@ This blog is getting long.  Now that we understand memory, the next blog will ta
 
 ## Appendix 2:  What does asm volatile("" : : "g"(curr_addr) : "memory") actually do?
 
-`asm` inserts assembly directly into your C++ code and `volatile` says not to reorder or remove this instruction.  Now, or the full syntax, we generally have
+`asm` inserts assembly directly into your C++ code and `volatile` says the compiler can never remove it, even when it looks useless.  Now, for the full syntax, we generally have
 
 ```cpp
 asm volatile(
@@ -420,11 +420,12 @@ asm volatile(
 );
 ```
 
-So, for our original expression.  There is no assembly work to do -- just the `""` expression.There are no outputs and our only input is `curr_addr` which is just a general operand `g`.  Moreover, "memory" is an asm memory clobber which tells the compiler to assume this instruction could write generic memory-- even though it is empty here.  As a result, we have a compiler memory barrier which instructions can not be ordered across (in either direction).
+So, for our original expression: there is no assembly work to do-- just the empty `""` template.  There are no outputs and our only input is `curr_addr` which is just a general operand `g`.  Moreover, "memory" is an asm memory clobber which tells the compiler to assume this instruction could read or write any memory-- even though it is empty here.  The read half is what saves the `heap_write` demo: since the asm might read the allocation, the compiler has to actually finish zeroing it first.  As a result, we have a compiler memory barrier which memory operations can not be ordered across (in either direction).  Note this barrier is compile-time only-- no fence instruction is emitted, so the CPU itself is still free to reorder.
 
 In summary, this instruction tells the compiler to treat `curr_addr` as used (and therefore can not optimize it away) and to not optimize memory operations across that point.
 
 To read more on this, I will defer to Henrique Bucher's blog post [here](https://hftuniversity.com/post/the-hidden-performance-killers-in-d45).
+
 ## Resources:
 
 - [C++ as a Microscope Into Hardware - Linus Boehm - C++Now 2025 (YouTube)](https://www.youtube.com/watch?v=KFe6LCcDjL8)
