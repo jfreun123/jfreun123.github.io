@@ -407,6 +407,8 @@ This blog is getting long.  Now that we understand memory, the next blog will ta
 - Our binary, libraries, stack, and bookkeeping already occupy a sliver of that, so the 131072nd GiB doesn't fit-- `new` throws `std::bad_alloc` after 131071 (the talk's machine reported 131070 for the same reason).
 - Nothing about physical RAM is involved; the wall we hit is the size of the *address space* itself.
 
+<!-- TODO(Jacob): Appendix 2:  What does asm volatile("" : : "g"(curr_addr) : "memory") actually do? -->
+
 ## Resources:
 
 - [C++ as a Microscope Into Hardware - Linus Boehm - C++Now 2025 (YouTube)](https://www.youtube.com/watch?v=KFe6LCcDjL8)
