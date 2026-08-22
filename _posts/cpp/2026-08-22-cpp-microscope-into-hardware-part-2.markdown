@@ -407,8 +407,24 @@ This blog is getting long.  Now that we understand memory, the next blog will ta
 - Our binary, libraries, stack, and bookkeeping already occupy a sliver of that, so the 131072nd GiB doesn't fit-- `new` throws `std::bad_alloc` after 131071 (the talk's machine reported 131070 for the same reason).
 - Nothing about physical RAM is involved; the wall we hit is the size of the *address space* itself.
 
-<!-- TODO(Jacob): Appendix 2:  What does asm volatile("" : : "g"(curr_addr) : "memory") actually do? -->
+## Appendix 2:  What does asm volatile("" : : "g"(curr_addr) : "memory") actually do?
 
+`asm` inserts assembly directly into your C++ code and `volatile` says not to reorder or remove this instruction.  Now, or the full syntax, we generally have
+
+```cpp
+asm volatile(
+    "assembly"
+    : outputs
+    : inputs
+    : clobbers
+);
+```
+
+So, for our original expression.  There is no assembly work to do -- just the `""` expression.There are no outputs and our only input is `curr_addr` which is just a general operand `g`.  Moreover, "memory" is an asm memory clobber which tells the compiler to assume this instruction could write generic memory-- even though it is empty here.  As a result, we have a compiler memory barrier which instructions can not be ordered across (in either direction).
+
+In summary, this instruction tells the compiler to treat `curr_addr` as used (and therefore can not optimize it away) and to not optimize memory operations across that point.
+
+To read more on this, I will defer to Henrique Bucher's blog post [here](https://hftuniversity.com/post/the-hidden-performance-killers-in-d45).
 ## Resources:
 
 - [C++ as a Microscope Into Hardware - Linus Boehm - C++Now 2025 (YouTube)](https://www.youtube.com/watch?v=KFe6LCcDjL8)
