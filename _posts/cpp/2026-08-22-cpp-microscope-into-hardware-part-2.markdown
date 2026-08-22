@@ -67,18 +67,18 @@ globals                   0x40b080
 functions                 0x4021f6
 ```
 
-Note, the globals address is encoded in the binary!  In fact, running xxd and grepping for the address (as raw little-endian bytes, just like Part 1) gives
+Note, the globals address is encoded in the binary!  In fact, disassembling and grepping for the address gives
 
 ```bash
-xxd -g1 memory_layout | grep "80 b0 40 00"
+objdump -d -C -M intel memory_layout | grep -A1 "mov.*0x40b080"
 ```
 
 ```
-00002290: 60 ff ff ff 48 c7 85 70 ff ff ff 80 b0 40 00 48  `...H..p.....@.H
-0000b940: 80 b0 40 00 00 00 00 00 04 00 00 00 00 00 00 00  ..@.............
+  402294:	48 c7 85 70 ff ff ff 	mov    QWORD PTR [rbp-0x90],0x40b080
+  40229b:	80 b0 40 00
 ```
 
-(the first hit is inside a `mov` instruction that takes the global's address-- the second is bookkeeping in the symbol table)
+(a `mov` instruction storing the global's address-- and the instruction is so long that objdump wraps its raw bytes onto a second line, which happens to show the address as `80 b0 40 00`: little-endian, just like Part 1)
 
 ([same_address.cpp](https://github.com/jfreun123/cpp_study/blob/main/blog/cpp_microscope_into_hardware/same_address.cpp) in my [cpp_study](https://github.com/jfreun123/cpp_study) repo)
 
@@ -110,7 +110,7 @@ addr: 0x404028, val: 41
 
 Note, they have the same address but two independent values-- each process incremented its own copy of `num` from 40 to 41 (if the address were shared, the second copy would have printed 42)!  Therefore, the address can not be real.  Indeed, it is a virtual address.
 
-Every address a program sees is virtual: the OS keeps a per-process page table that maps virtual pages (4 KiB each) to physical page frames, and the CPU translates through that table on every single memory access.  To keep that from being slow, recent translations are cached in the TLB (translation lookaside buffer).  Each TLB entry only covers one 4 KiB page though, which is why huge pages (2 MiB or 1 GiB) exist-- one entry suddenly covers 512x the memory and the TLB stops thrashing.
+<!-- TODO(Jacob): how virtual memory works, TLB, maybe huge pages -->
 
 Now, how big *is* the stack?
 
