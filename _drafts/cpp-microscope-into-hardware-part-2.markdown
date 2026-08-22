@@ -223,6 +223,10 @@ int main() {
 }
 ```
 
+<iframe width="100%" height="400px" src="https://godbolt.org/e?hideEditorToolbars=true#compiler:g152,filters:'demangle,commentOnly,libraryCode,trim,intel,directives,labels',options:'-O3',source:'//+heap_no_write.cpp%0Astatic+constexpr+auto+ONE_GiB+%3D+(1U+%3C%3C+30U)%3B%0Astruct+OneGiB+%7B+char+data%5BONE_GiB%5D%3B+%7D%3B%0A%0Aint+main()+%7B%0A++OneGiB*+curr_addr%3B%0A%0A++for+(int+cnt+%3D+0%3B+cnt+%3C+4%3B+%2B%2Bcnt)+%7B%0A++++curr_addr+%3D+new+OneGiB%3B%0A++++//+keep+gcc+15+from+optimizing+the+unused+allocation+away%0A++++asm+volatile(%22%22+%3A+%3A+%22g%22(curr_addr)+%3A+%22memory%22)%3B%0A++%7D%0A%7D%0A'"></iframe>
+
+([open in Compiler Explorer](https://godbolt.org/z/Kx9PqK4qr)-- delete the `asm volatile` line and watch gcc reduce `main` to `xor eax, eax` + `ret`: all four GiB of allocations, gone)
+
 ```cpp
 // heap_write.cpp
 static constexpr auto ONE_GiB = (1U << 30U);
