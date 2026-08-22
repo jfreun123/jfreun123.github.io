@@ -110,7 +110,7 @@ addr: 0x404028, val: 41
 
 Note, they have the same address but two independent values-- each process incremented its own copy of `num` from 40 to 41 (if the address were shared, the second copy would have printed 42)!  Therefore, the address can not be real.  Indeed, it is a virtual address.
 
-<!-- TODO(Jacob): how virtual memory works, TLB, maybe huge pages -->
+How that translation actually works (page tables, the TLB, huge pages) deserves its own post-- that will be Part 2.5.
 
 Now, how big *is* the stack?
 
