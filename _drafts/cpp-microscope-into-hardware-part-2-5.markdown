@@ -28,7 +28,31 @@ Let's list out what we know from [part 2](/cpp/2026/08/22/cpp-microscope-into-ha
 - The first time reading/writing to memory takes substantially longer than the second time.
 - bytes per fault: 4095 bytes/fault (though we currently do not know what this means)
 
-Given what we observed in the previous post, any model of how memory works must explain this behavior.
+Given what we observed in the previous post, any model of how memory works must explain this behavior.  But which model is a good starting point?  For that, we will do the highly academic, battlement approach of "taking an educated guess."  
+
+## Model #1:  Base and Bounds
+
+Let's take two hardware registers within the CPU:  one for the base register and one for the bounds.  Here, each program assumes it as address zero but, when running, the OS translate the virtual adress using the following formula:
+
+
+// TODO:  clarify there is one base and bounds pair per process
+
+// todo:  mathify this:  physical address = virtual address + base
+
+Here, the bounds register just helps for protection that we do not go out of bounds. 
+
+While this approach is simple, there is one huge flaw:  internal fragmentation:  That is, the space between the stack and heap is wasted in a huge amount of internal fragmentation-- internal as the wasted space is inside the allocated unit.   Most programs are small (MBs) and this wasted space can waist GBs
+
+// Todo:  show the math of this waste
+
+## Model #2:  Segmentation  
+
+// TODO:  clarify there is one base and bounds and segment tuple per process 
+
+It was nice how simple Base and Bounds was.  Let's try to keep it.  To patch it up, instead of just having one base and bounds pair in our MMU (memory management unit), let's have a base and bounds pair per logical (Specify what logical means here) segment of the address space.  // TODO:  add chapter 16 of ostep to the references.  A segment is just a division of our usual address space that allows the OS to place each base and bound in its own segment and thus avoid filling physical memory with unused virtual address space.  
+
+So, if we have n segments chopping up our previous base and bounds block we will now be n times smaller!  Huge improvement as we can control n.  
+
 
 ## Resources:
 
