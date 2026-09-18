@@ -118,11 +118,9 @@ It is worth noting that this multi-level process generalizes:  instead of two le
 Now, for the full pseudo code for this system:
 
 ```
-// Extract the VPN and the offset from the virtual address
 VPN    = (VirtualAddress & VPN_MASK) >> SHIFT
 Offset = VirtualAddress & OFFSET_MASK
 
-// First, check the TLB — a small hardware cache of recent translations
 (Success, TlbEntry) = TLB_Lookup(VPN)
 if (Success == True)    // TLB Hit
     if (CanAccess(TlbEntry.ProtectBits) == True)
@@ -130,34 +128,21 @@ if (Success == True)    // TLB Hit
         Register = AccessMemory(PhysAddr)
     else
         RaiseException(PROTECTION_FAULT)
-else                    // TLB Miss: walk the two-level page table
-    // split the 20-bit VPN into its two 10-bit indices:  VPN = [ PDIndex | PTIndex ]
-    // (for k levels, repeat the level-1 step k-1 times before the final PTE read)
-
-    // Level 1: read the page directory entry (PDE) — what we called the
-    // first level's PTE above
+else                    // TLB Miss
     PDIndex = (VPN & PD_MASK) >> PD_SHIFT
     PDEAddr = PTBR + (PDIndex * sizeof(PDE))
-    PDE     = AccessMemory(PDEAddr)          // memory access #1
+    PDE     = AccessMemory(PDEAddr)
     if (PDE.Valid == False)
-        // no level-2 table here: this 4 MB slice was never allocated
         RaiseException(SEGMENTATION_FAULT)
     else if (PDE.Present == False)
-        // the level-2 table itself was paged out (tables are pageable too!)
         RaiseException(PAGE_FAULT)
 
-    // Level 2: read the page table entry (PTE)
     PTIndex = VPN & PT_MASK
     PTEAddr = (PDE.PFN << SHIFT) + (PTIndex * sizeof(PTE))
-    PTE     = AccessMemory(PTEAddr)          // memory access #2
+    PTE     = AccessMemory(PTEAddr)
     if (PTE.Valid == False)
         RaiseException(SEGMENTATION_FAULT)
     else if (PTE.Present == False)
-        // PAGE FAULT: trap into the OS's page-fault handler, which will
-        //   1. pick a victim page in physical memory (writing it to disk if dirty),
-        //   2. page in our page and update the PTE in memory,
-        //   3. return and restart this instruction — which now succeeds,
-        //      since the page sits in physical memory
         RaiseException(PAGE_FAULT)
     else if (CanAccess(PTE.ProtectBits) == False)
         RaiseException(PROTECTION_FAULT)
