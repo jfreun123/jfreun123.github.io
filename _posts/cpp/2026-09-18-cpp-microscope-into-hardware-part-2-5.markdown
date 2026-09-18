@@ -129,28 +129,36 @@ if (Success == True)    // TLB Hit
         Register = AccessMemory(PhysAddr)
     else
         RaiseException(PROTECTION_FAULT)
-else                    // TLB Miss: walk the multi-level page table
-    // the VPN is really k indices glued together (k = 2 in our 10/10 example):
-    //   VPN = [ index_1 | index_2 | ... | index_k ]
-    TableBase = PTBR                      // physical address of the level-1 table
-    for level in 1..k
-        Index   = IndexBits(VPN, level)   // peel off the next 10 index bits
-        PTEAddr = TableBase + (Index * sizeof(PTE))
-        PTE     = AccessMemory(PTEAddr)   // one memory access per level!
-        if (PTE.Valid == False)
-            // nothing was ever allocated in this slice of the address space
-            RaiseException(SEGMENTATION_FAULT)
-        else if (PTE.Present == False)
-            // PAGE FAULT: trap into the OS's page-fault handler, which will
-            //   1. pick a victim page in physical memory (writing it to disk if dirty),
-            //   2. page in what we need — our data page or, at an inner level,
-            //      the next page table itself (they are pageable too!),
-            //   3. update the PTE, return, and restart this instruction — which
-            //      now succeeds, since the page sits in physical memory
-            RaiseException(PAGE_FAULT)
-        TableBase = PTE.PFN << SHIFT      // next table — or, after the last level, our data page
-    // the walk survived:  PTE is now the leaf entry mapping our page
-    if (CanAccess(PTE.ProtectBits) == False)
+else                    // TLB Miss: walk the two-level page table
+    // split the 20-bit VPN into its two 10-bit indices:  VPN = [ PDIndex | PTIndex ]
+    // (for k levels, repeat the level-1 step k-1 times before the final PTE read)
+
+    // Level 1: read the page directory entry (PDE) — what we called the
+    // first level's PTE above
+    PDIndex = (VPN & PD_MASK) >> PD_SHIFT
+    PDEAddr = PTBR + (PDIndex * sizeof(PDE))
+    PDE     = AccessMemory(PDEAddr)          // memory access #1
+    if (PDE.Valid == False)
+        // no level-2 table here: this 4 MB slice was never allocated
+        RaiseException(SEGMENTATION_FAULT)
+    else if (PDE.Present == False)
+        // the level-2 table itself was paged out (tables are pageable too!)
+        RaiseException(PAGE_FAULT)
+
+    // Level 2: read the page table entry (PTE)
+    PTIndex = VPN & PT_MASK
+    PTEAddr = (PDE.PFN << SHIFT) + (PTIndex * sizeof(PTE))
+    PTE     = AccessMemory(PTEAddr)          // memory access #2
+    if (PTE.Valid == False)
+        RaiseException(SEGMENTATION_FAULT)
+    else if (PTE.Present == False)
+        // PAGE FAULT: trap into the OS's page-fault handler, which will
+        //   1. pick a victim page in physical memory (writing it to disk if dirty),
+        //   2. page in our page and update the PTE in memory,
+        //   3. return and restart this instruction — which now succeeds,
+        //      since the page sits in physical memory
+        RaiseException(PAGE_FAULT)
+    else if (CanAccess(PTE.ProtectBits) == False)
         RaiseException(PROTECTION_FAULT)
     else
         TLB_Insert(VPN, PTE.PFN, PTE.ProtectBits)
