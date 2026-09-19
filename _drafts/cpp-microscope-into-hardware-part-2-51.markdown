@@ -19,6 +19,8 @@ part: 2.51
 
 // TODO:  how the TLB works with context switches (from part 2.5's appendix TODO)
 
+// TODO:  where do page tables themselves live?  (cut from 2.5:  the kernel reaches its page tables through its own virtual addresses, while the hardware's page-table walker follows physical addresses, so the recursion bottoms out)
+
 ## Resources:
 
 - [Computer Systems: A Programmer's Perspective (CS:APP), 3rd Edition, Randal E. Bryant and David R. O'Hallaron](https://csapp.cs.cmu.edu/): the classic systems textbook from the programmer's point of view.  Chapter 9 (Virtual Memory) covers address translation, TLBs, and multi-level page tables end to end.
