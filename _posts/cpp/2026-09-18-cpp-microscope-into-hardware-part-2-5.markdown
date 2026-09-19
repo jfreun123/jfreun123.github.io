@@ -28,6 +28,7 @@ Let's list out what we know from [part 2](/cpp/2026/08/22/cpp-microscope-into-ha
   ```
 - The first time reading/writing to memory takes substantially longer than the second time.
 - bytes per fault: 4095 bytes/fault (though we currently do not know what this means)
+- On the read-only run, we allocated 3072 MiB of virtual memory but only 1 MiB of physical memory.
 
 Given what we observed in the previous post, any model of how memory works must explain this behavior.  But which model is a good starting point?  For that, we will use the highly academic, battle-tested approach of "taking an educated guess."  
 
@@ -92,20 +93,20 @@ Before guessing again, let's check our models against what we measured in part 2
 | 47-bit (128 TiB) address space | Fails:  needs 128 TiB of contiguous physical RAM | Partial:  the heap–stack gap costs nothing, but a large sparse heap still needs full backing |
 | First touch of memory is much slower than the second | Unexplained:  everything is mapped up front, so both touches should cost the same | Unexplained:  same story |
 | 4095 bytes/fault | Unexplained:  nothing in this model works in ~4 KiB units | Unexplained:  same story |
+| 3072 MiB virtual but only 1 MiB physical on the read-only run | Fails:  everything from base to bounds is physically backed | Fails:  the whole heap segment must be resident to be accessed |
 
 So, we need yet another model.  For our final guess...
 
 ## Model #3:  Paging
 
-As we will see, this will be the model we need to explain everything.  Instead of fragmenting memory three ways, let's further chop it up into fixed-size pieces:  pages.  First, the page table base register (PTBR) points to the current per-process page table.  Now, the 64-bit virtual address has two components:  a p-bit virtual page offset (VPO) and a (64-p)-bit virtual page number (VPN).  (In practice, today's x86-64 hardware translates only the low 48 of those 64 bits, and user space gets the lower half — hence the 47-bit address space we measured in part 2.)  The memory management unit (MMU) uses the VPN to select the appropriate page table entry (PTE).  The final physical address is just the concatenation of the physical page number (PPN) from the page table entry and the VPO from the virtual address.
+As we will see, this will be the model we need to explain everything.  Instead of fragmenting memory three ways, let's further chop it up into fixed-size pieces:  pages.  Now, the 64-bit virtual address has two components:  a p-bit virtual page offset (VPO) and a (64-p)-bit virtual page number (VPN).  (In practice, today's x86-64 hardware translates only the low 48 of those 64 bits, and user space gets the lower half — hence the 47-bit address space we measured in part 2.)  The memory management unit (MMU) uses the VPN to select the appropriate page table entry (PTE).  The final physical address is just the concatenation of the physical page number (PPN) from the page table entry and the VPO from the virtual address.
+
+Similar to the first two models, there is a page table base register (PTBR) that points to the current per-process page table.  When a given process is running, the address of its page table sits inside that special register (CR3 on x86-64) and is swapped in and out on context switches.
 
 Moreover, we can now explain why first touch of memory is so slow:  page faults.  When we have a virtual address whose page is *not* yet present in physical memory, we have a page fault when we first access the memory — the `PAGE_FAULT` branch in the code below — and the OS must page in our page before the instruction can finish.
 
 In fact, these page faults explain what the 4095 bytes/fault means:  each fault maps in one page, and a page on Linux is 4096 bytes (2^12 = 4 KiB).  Check the numbers from part 2:  we touched 3072 MiB and the read loop took 786432 page faults — exactly 3072 MiB / 4096 bytes.  The extra 161 faults the rest of the process took drag the printed average down to 4095.
 
-As an aside, this entire process is incredibly slow.  That's where more caching comes in, in the form of the translation lookaside buffer (TLB).  A TLB has a high degree of associativity (often fully associative):  a translation can live in any TLB slot and the hardware compares against every slot in parallel, so we rarely miss just because two pages fought over the same slot.
-
-Now, with a TLB, we first try to get the translation from the TLB, skipping the expensive page-table walk out to main memory on a hit.  This is the difference between roughly a cycle (a hit is overlapped with the L1 cache lookup) and tens to hundreds of cycles for a miss (a page-table walk on x86-64 is up to four dependent memory accesses).
 
 Still, for small programs we'd need the full linear page table.  This can be expensive.  For instance, a 32-bit address space (2^32 = 4 GB) with 4 KiB pages and a 20-bit VPN implies there are 2^20 ≈ 1 million virtual to physical address translations the OS would need to manage.  Assuming we'd need 4 bytes per page table entry, that means 2^20 * 4 bytes = 4 MB of memory needed for each page table per running process.  For a quick sanity check:  those 2^20 entries each map a 4 KiB page, and 2^20 * 2^12 = 2^32 bytes = 4 GB — the whole address space.  Moreover, for the 64-bit example with the 47-bit address space we measured in part 2, a flat table would need 2^47 / 4 KiB = 2^35 entries, or 128 GiB, per process!  Going back to our 32-bit example, while 4 MB may not sound like a lot, it is important to note that a machine typically runs hundreds of processes at once (`ps -e | wc -l` on an idle Linux desktop easily shows 200+), so 250 processes * 4 MB ≈ 1 GB of RAM used just for the tables... and RAM is already expensive as is.  On a 64-bit system, a single flat page table would not even fit on most computers.
 
@@ -114,6 +115,12 @@ Still, for small programs we'd need the full linear page table.  This can be exp
  For example, if a program only uses a single 4 MB chunk of its address space (which needs 4 MB / 4 KiB = 1,024 pages — exactly one level-2 table), this is a huge saving.  That is, with a single linear map for a 32-bit system we needed 4 MB of space no matter what; with two levels, such a program needs the 4 KiB level-1 table plus one 4 KiB level-2 table — just 8 KiB, a 512x improvement on how much memory page tables consume  (and the always-resident minimum is just the 4 KiB level-1 table, a full 1000x less).  Moreover, only the level 1 table needs to be in main memory at all times:  the level 2 page tables can be created and paged in and out by the VM system itself, which greatly reduces pressure on main memory.
 
 It is worth noting that this multi-level process generalizes:  instead of two levels we could have k levels.  For instance, in our 64-bit example (with the 47-bit address space we measured, so a 47 - 12 = 35-bit VPN), we have 2^35 ≈ 34 billion pages.  This means that for a program that only uses a single 4 MB chunk of its address space we'd only need one 4 KiB table per level along the path:  if we keep our 10-bit levels, that is k = ceil(35 / 10) = 4 levels, so 4 * 4 KiB = 16 KiB of page tables — compared to 128 GiB this is an obvious win (a factor of about 8 million).  (Real x86-64 lands in the same place:  four levels, just with 9-bit indices and 8-byte PTEs — 4 KiB / 8 bytes = 2^9.)  While it may seem expensive to dereference memory k times for a single address translation, it is important to remember (and thank) the TLB:  on a hit we skip the walk entirely.  Still, there are reasons to avoid using a large number of levels, which will be further discussed in the next post.
+
+Now that we understand paging, we can explain where the 47-bit address space comes from:  4 levels * 9 bits per level + 12 offset bits = 48 translatable bits, and user space gets half of that, so it effectively only gets 47 bits.  Our earlier failure at 131071 GiB (≈ 2^47 bytes) is now fully understood.
+
+Unfortunately, this entire process is incredibly slow.  That's where more caching comes in, in the form of the translation lookaside buffer (TLB).  A TLB has a high degree of associativity:  a translation can live in any TLB slot and the hardware compares against every slot in parallel, so we rarely miss just because two pages fought over the same slot.
+
+Now, with a TLB, we first try to get the translation from the TLB, skipping the expensive page-table walk out to main memory on a hit.  This is the difference between roughly a cycle (a hit is overlapped with the L1 cache lookup) and tens to hundreds of cycles for a miss (a page-table walk on x86-64 is up to four dependent memory accesses because each level in a multi-level setup requires a memory access).
 
 Now, for the full pseudo code for this system:
 
@@ -153,6 +160,17 @@ else                    // TLB Miss
 
 *(Pseudocode adapted from [OSTEP chapter 19](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-tlbs.pdf), Figure 19.1, extended with the multi-level walk of [chapter 20](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-smalltables.pdf) and the page-fault path of [chapter 21](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys.pdf).  Note the terminology:  OSTEP says PFN — page frame number — for what CS:APP and the text above call the PPN, and OSTEP's `Offset` is our VPO.)*
 
+Why is the exception called a `SEGMENTATION_FAULT`?  This is just a relic from the past — the days of Model #2!  Naming is hard...
+
+There is still a ton to learn about when it comes to paging.  For instance:
+
+- how does general caching work into this (does the cache work on virtual or physical addresses?)
+- how does the TLB handle context switches
+- what are big pages
+- how does the Linux OS represent all of this?
+
+For those questions, we will need another part.
+
 ## Final Scorecard
 
 So, how did our final guess do?  Let's grade all three models against what we measured in part 2:
@@ -163,8 +181,9 @@ So, how did our final guess do?  Let's grade all three models against what we me
 | 47-bit (128 TiB) address space | Fails:  needs 128 TiB of contiguous physical RAM | Partial:  the heap–stack gap costs nothing, but a large sparse heap still needs full backing | Explained:  multi-level tables map only what is used, so a huge, sparse address space costs KiBs of tables — not 128 TiB of RAM |
 | First touch of memory is much slower than the second | Unexplained:  everything is mapped up front, so both touches should cost the same | Unexplained:  same story | Explained:  first touch page-faults, and the OS must map the page in before retrying; later touches skip all of that (and usually hit the TLB) |
 | 4095 bytes/fault | Unexplained:  nothing in this model works in ~4 KiB units | Unexplained:  same story | Explained:  each fault maps exactly one 4096-byte page; the handful of unrelated faults drag the printed average to 4095 |
+| 3072 MiB virtual but only 1 MiB physical on the read-only run | Fails:  everything from base to bounds is physically backed | Fails:  the whole heap segment must be resident to be accessed | Explained:  every untouched page maps to the same shared, read-only zero page; a real frame appears only when we write |
 
-Paging goes four for four.
+Paging goes five for five.
 
 ## Resources:
 
