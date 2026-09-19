@@ -19,6 +19,10 @@ part: 2.51
 
 // TODO:  how the TLB works with context switches (from part 2.5's appendix TODO)
 
+// TODO:  how does general caching fit in — do caches work on virtual or physical addresses?  (from part 2.5's closing list)
+
+// TODO:  how does Linux represent all of this?  (from part 2.5's closing list)
+
 // TODO:  where do page tables themselves live?  (cut from 2.5:  the kernel reaches its page tables through its own virtual addresses, while the hardware's page-table walker follows physical addresses, so the recursion bottoms out)
 
 ## Resources:

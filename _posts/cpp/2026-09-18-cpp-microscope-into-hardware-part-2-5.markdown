@@ -15,7 +15,7 @@ part: 2.5
 
 Let's list out what we know from [part 2](/cpp/2026/08/22/cpp-microscope-into-hardware-part-2.html):
 
-- the memory we see in our program is virtual:  two programs can have the same virtual memory addresses that map to different physical memory addresses
+- The memory we see in our program is virtual:  two programs can have the same virtual memory addresses that map to different physical memory addresses.
 - Given we fail after using 131071 GiB of virtual memory, we'd expect the translation to somehow use *at least* 47 bits of address.  Addresses name bytes (not GiB), so:
 
   ```
@@ -27,10 +27,10 @@ Let's list out what we know from [part 2](/cpp/2026/08/22/cpp-microscope-into-ha
                             = 47 bits
   ```
 - The first time reading/writing to memory takes substantially longer than the second time.
-- bytes per fault: 4095 bytes/fault (though we currently do not know what this means)
+- Bytes per fault:  4095 bytes/fault (though we currently do not know what this means).
 - On the read-only run, we allocated 3072 MiB of virtual memory but only 1 MiB of physical memory.
 
-Given what we observed in the previous post, any model of how memory works must explain this behavior.  But which model is a good starting point?  For that, we will use the highly academic, battle-tested approach of "taking an educated guess."  
+Given what we observed in the previous post, any model of how memory works must explain this behavior.  But which model is a good starting point?  For that, we will use the highly academic, battle-tested approach of "taking an educated guess."
 
 ## Model #1:  Base and Bounds
 
@@ -44,7 +44,7 @@ Note that there is one base and bounds pair per process:  the OS saves and resto
 
 Here, the bounds register just provides protection, checking that we do not go out of bounds.
 
-While this approach is simple, there is one huge flaw:  internal fragmentation.  That is, the space between the stack and heap is wasted in a huge amount of internal fragmentation — internal as the wasted space is inside the allocated unit.  Most programs are small (MBs) and this wasted space can waste TiBs:
+While this approach is simple, there is one huge flaw:  internal fragmentation.  That is, the space between the stack and heap is wasted — internal, as the wasted space is inside the allocated unit.  Most programs are small (MBs) and this gap can waste TiBs:
 
 ```
 address space (base to bounds):    2^47 bytes = 128 TiB   (what we measured in part 2)
@@ -54,13 +54,16 @@ stack (top):                     ~ 8 MiB                  (default Linux stack l
 wasted gap in the middle:          128 TiB - 12 MiB ≈ 128 TiB   (~99.99999% of the allocation)
 ```
 
+In fact, on a real base and bounds machine our part 2 experiment could never have gotten this far:  handing out address space *is* handing out physical memory under this model, so the mmap loop would have failed at roughly the size of our RAM (tens of GiB at best) — not at 131071 GiB.
+
 Moreover, for large programs, it becomes challenging to run a program when the entire address space does not easily fit into memory.  We need a new model.
 
-## Model #2:  Segmentation  
+## Model #2:  Segmentation
 
 It was nice how simple Base and Bounds was.  Let's try to keep it.  To patch it up, instead of just having one base and bounds pair in our MMU (memory management unit), let's have a base and bounds pair per logical segment of the address space — logical meaning the natural divisions of the address space we already know:  code, heap, and stack ([OSTEP chapter 16](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-segmentation.pdf)).  A segment is just a division of our usual address space (one segment each for code, stack, and heap); giving each segment its own base and bounds allows the OS to place each segment independently in physical memory and thus avoid filling physical memory with unused virtual address space, as happened when we mandated that code, stack, and heap be placed in one single unit.  As before, this state is per process:  each process gets its own set of (segment, base, bounds) tuples, saved and restored on a context switch.
 
-For an example of what this translation could look like:
+Here is an example of what this translation could look like:
+
 ```
 // get top 2 bits of 14-bit VA
 Segment = (VirtualAddress & SEG_MASK) >> SEG_SHIFT
@@ -105,24 +108,25 @@ Similar to the first two models, there is a page table base register (PTBR) that
 
 Moreover, we can now explain why first touch of memory is so slow:  page faults.  When we have a virtual address whose page is *not* yet present in physical memory, we have a page fault when we first access the memory — the `PAGE_FAULT` branch in the code below — and the OS must page in our page before the instruction can finish.
 
+Also, we can bookkeep which virtual addresses are valid without backing them with any physical memory until they are first touched; in the earlier models, every virtual address had to be immediately backed.  Because of this lazy ability, we get the feeling of far more memory than we would otherwise have:  in models #1 and #2, everything we allocated had to fit in our physical memory (often ~32 GB), while paging gives us 2^47 bytes = 131072 GiB (= 128 TiB) of virtual memory!
+
 In fact, these page faults explain what the 4095 bytes/fault means:  each fault maps in one page, and a page on Linux is 4096 bytes (2^12 = 4 KiB).  Check the numbers from part 2:  we touched 3072 MiB and the read loop took 786432 page faults — exactly 3072 MiB / 4096 bytes.  The extra 161 faults the rest of the process took drag the printed average down to 4095.
 
+Still, even for small programs we'd need the full linear page table.  This can be expensive.  For instance, a 32-bit address space (2^32 = 4 GB) with 4 KiB pages and a 20-bit VPN implies there are 2^20 ≈ 1 million virtual to physical address translations the OS would need to manage.  Assuming we'd need 4 bytes per page table entry, that means 2^20 * 4 bytes = 4 MB of memory needed for each page table per running process.  For a quick sanity check:  those 2^20 entries each map a 4 KiB page, and 2^20 * 2^12 = 2^32 bytes = 4 GB — the whole address space.  Moreover, for the 64-bit example with the 47-bit address space we measured in part 2, a flat table would need 2^47 / 4 KiB = 2^35 entries, or 128 GiB, per process!  Going back to our 32-bit example, while 4 MB may not sound like a lot, it is important to note that a machine typically runs hundreds of processes at once (`ps -e | wc -l` on an idle Linux desktop easily shows 200+), so 250 processes * 4 MB ≈ 1 GB of RAM used just for the tables... and RAM is already expensive as is.  On a 64-bit system, a single flat page table would not even fit on most computers.
 
-Still, for small programs we'd need the full linear page table.  This can be expensive.  For instance, a 32-bit address space (2^32 = 4 GB) with 4 KiB pages and a 20-bit VPN implies there are 2^20 ≈ 1 million virtual to physical address translations the OS would need to manage.  Assuming we'd need 4 bytes per page table entry, that means 2^20 * 4 bytes = 4 MB of memory needed for each page table per running process.  For a quick sanity check:  those 2^20 entries each map a 4 KiB page, and 2^20 * 2^12 = 2^32 bytes = 4 GB — the whole address space.  Moreover, for the 64-bit example with the 47-bit address space we measured in part 2, a flat table would need 2^47 / 4 KiB = 2^35 entries, or 128 GiB, per process!  Going back to our 32-bit example, while 4 MB may not sound like a lot, it is important to note that a machine typically runs hundreds of processes at once (`ps -e | wc -l` on an idle Linux desktop easily shows 200+), so 250 processes * 4 MB ≈ 1 GB of RAM used just for the tables... and RAM is already expensive as is.  On a 64-bit system, a single flat page table would not even fit on most computers.
+Instead, to solve that issue, we introduce multi-level page tables:  instead of one large linear array, we have layers of them.  Conceptually, a multi-level page table resembles a tree.  Let's consider a simple two-level setup:  instead of using the 20-bit VPN as one index into one giant array, we split it up such that the first 10 bits are for the first level and the last 10 bits are for the next level.  Why 10?  Because a 4 KiB page holding 4-byte entries fits 4 KiB / 4 bytes = 2^10 of them — each table is exactly one page.  Then, each of the first level's PTEs points to one level-2 table:  a single 4 KiB page holding 1,024 PTEs, each mapping one page.  In general, we have 1,024 level-1 entries * 1,024 PTEs per level-2 table * 4 KiB per page = 4 GB, so the two-level tree covers our entire virtual address space — we lose nothing relative to the flat table.  However, this dramatically saves on memory:  if some PTE in level 1 is null, we simply never allocate the level-2 table it would point to — that table's 4 MB slice of the address space just isn't mapped.
 
- Instead, to solve that issue, we introduce multi-level page tables:  instead of one large linear array, we have layers of them.  Conceptually, a multi-level page table resembles a tree.  Let's consider a simple two-level setup:  instead of using the 20-bit VPN as one index into one giant array, we split it up such that the first 10 bits are for the first level and the last 10 bits are for the next level.  Why 10?  Because a 4 KiB page holding 4-byte entries fits 4 KiB / 4 bytes = 2^10 of them — each table is exactly one page.  Then, each of the first level's PTEs points to one level-2 table:  a single 4 KiB page holding 1,024 PTEs, each mapping one page.  In general, we have 1,024 level-1 entries * 1,024 PTEs per level-2 table * 4 KiB per page = 4 GB, so the two-level tree covers our entire virtual address space — we lose nothing relative to the flat table.  However, this dramatically saves on memory:  if some PTE in level 1 is null, we simply never allocate the level-2 table it would point to — that table's 4 MB slice of the address space just isn't mapped.  
- 
- For example, if a program only uses a single 4 MB chunk of its address space (which needs 4 MB / 4 KiB = 1,024 pages — exactly one level-2 table), this is a huge saving.  That is, with a single linear map for a 32-bit system we needed 4 MB of space no matter what; with two levels, such a program needs the 4 KiB level-1 table plus one 4 KiB level-2 table — just 8 KiB, a 512x improvement on how much memory page tables consume  (and the always-resident minimum is just the 4 KiB level-1 table, a full 1000x less).  Moreover, only the level 1 table needs to be in main memory at all times:  the level 2 page tables can be created and paged in and out by the VM system itself, which greatly reduces pressure on main memory.
+For example, if a program only uses a single 4 MB chunk of its address space (which needs 4 MB / 4 KiB = 1,024 pages — exactly one level-2 table), this is a huge saving.  That is, with a single linear map for a 32-bit system we needed 4 MB of space no matter what; with two levels, such a program needs the 4 KiB level-1 table plus one 4 KiB level-2 table — just 8 KiB, a 512x improvement on how much memory page tables consume (and the always-resident minimum is just the 4 KiB level-1 table, a full 1000x less).  Moreover, only the level 1 table needs to be in main memory at all times:  the level 2 page tables can be created and paged in and out by the VM system itself, which greatly reduces pressure on main memory.
 
-It is worth noting that this multi-level process generalizes:  instead of two levels we could have k levels.  For instance, in our 64-bit example (with the 47-bit address space we measured, so a 47 - 12 = 35-bit VPN), we have 2^35 ≈ 34 billion pages.  This means that for a program that only uses a single 4 MB chunk of its address space we'd only need one 4 KiB table per level along the path:  if we keep our 10-bit levels, that is k = ceil(35 / 10) = 4 levels, so 4 * 4 KiB = 16 KiB of page tables — compared to 128 GiB this is an obvious win (a factor of about 8 million).  (Real x86-64 lands in the same place:  four levels, just with 9-bit indices and 8-byte PTEs — 4 KiB / 8 bytes = 2^9.)  While it may seem expensive to dereference memory k times for a single address translation, it is important to remember (and thank) the TLB:  on a hit we skip the walk entirely.  Still, there are reasons to avoid using a large number of levels, which will be further discussed in the next post.
+It is worth noting that this multi-level process generalizes:  instead of two levels we could have k levels.  For instance, in our 64-bit example (with the 47-bit address space we measured, so a 47 - 12 = 35-bit VPN), we have 2^35 ≈ 34 billion pages.  This means that for a program that only uses a single 4 MB chunk of its address space we'd only need one 4 KiB table per level along the path:  if we keep our 10-bit levels, that is k = ceil(35 / 10) = 4 levels, so 4 * 4 KiB = 16 KiB of page tables — compared to 128 GiB this is an obvious win (a factor of about 8 million).  (Real x86-64 lands in the same place:  four levels, just with 9-bit indices and 8-byte PTEs — 4 KiB / 8 bytes = 2^9.)  While it may seem expensive to dereference memory k times for a single address translation, it is important to remember (and thank) the TLB, introduced below:  on a hit we skip the walk entirely.  Still, there are reasons to avoid using a large number of levels, which will be further discussed in the next post.
 
 Now that we understand paging, we can explain where the 47-bit address space comes from:  4 levels * 9 bits per level + 12 offset bits = 48 translatable bits, and user space gets half of that, so it effectively only gets 47 bits.  Our earlier failure at 131071 GiB (≈ 2^47 bytes) is now fully understood.
 
-Unfortunately, this entire process is incredibly slow.  That's where more caching comes in, in the form of the translation lookaside buffer (TLB).  A TLB has a high degree of associativity:  a translation can live in any TLB slot and the hardware compares against every slot in parallel, so we rarely miss just because two pages fought over the same slot.
+Unfortunately, this entire process is incredibly slow.  That's where more caching comes in, in the form of the translation lookaside buffer (TLB).  A TLB has a high degree of associativity (often fully associative):  a translation can live in any TLB slot and the hardware compares against every slot in parallel, so we rarely miss just because two pages fought over the same slot.
 
 Now, with a TLB, we first try to get the translation from the TLB, skipping the expensive page-table walk out to main memory on a hit.  This is the difference between roughly a cycle (a hit is overlapped with the L1 cache lookup) and tens to hundreds of cycles for a miss (a page-table walk on x86-64 is up to four dependent memory accesses because each level in a multi-level setup requires a memory access).
 
-Now, for the full pseudo code for this system:
+Now, for the full pseudocode for this system:
 
 ```
 VPN    = (VirtualAddress & VPN_MASK) >> SHIFT
@@ -162,12 +166,12 @@ else                    // TLB Miss
 
 Why is the exception called a `SEGMENTATION_FAULT`?  This is just a relic from the past — the days of Model #2!  Naming is hard...
 
-There is still a ton to learn about when it comes to paging.  For instance:
+There is still a ton to learn when it comes to paging.  For instance:
 
-- how does general caching work into this (does the cache work on virtual or physical addresses?)
-- how does the TLB handle context switches
-- what are big pages
-- how does the Linux OS represent all of this?
+- How does general caching fit into this (does the cache work on virtual or physical addresses)?
+- How does the TLB handle context switches?
+- What are big pages?
+- How does Linux represent all of this?
 
 For those questions, we will need another part.
 
