@@ -113,7 +113,7 @@ Still, for small programs we'd need the full linear page table.  This can be exp
  
  For example, if a program only uses a single 4 MB chunk of its address space (which needs 4 MB / 4 KiB = 1,024 pages — exactly one level-2 table), this is a huge saving.  That is, with a single linear map for a 32-bit system we needed 4 MB of space no matter what; with two levels, such a program needs the 4 KiB level-1 table plus one 4 KiB level-2 table — just 8 KiB, a 512x improvement on how much memory page tables consume  (and the always-resident minimum is just the 4 KiB level-1 table, a full 1000x less).  Moreover, only the level 1 table needs to be in main memory at all times:  the level 2 page tables can be created and paged in and out by the VM system itself, which greatly reduces pressure on main memory.
 
-It is worth noting that this multi-level process generalizes:  instead of two levels we could have k levels.  For instance, in our actual 64-bit system (with the 47-bit address space we measured, so a 47 - 12 = 35-bit VPN), we have 2^35 ≈ 34 billion pages.  This means that for a program that only uses a single 4 MB chunk of its address space we'd only need one 4 KiB table per level along the path:  with 10-bit levels that is k = ceil(35 / 10) = 4 levels, so 4 * 4 KiB = 16 KiB of page tables — compared to 128 GiB this is an obvious win (a factor of about 8 million).  While it may seem expensive to dereference memory k times for a single address translation, it is important to remember (and thank) the TLB:  on a hit we skip the walk entirely.  Still, there are reasons to avoid using a large number of levels, which will be further discussed in the appendix.
+It is worth noting that this multi-level process generalizes:  instead of two levels we could have k levels.  For instance, in our actual 64-bit system (with the 47-bit address space we measured, so a 47 - 12 = 35-bit VPN), we have 2^35 ≈ 34 billion pages.  This means that for a program that only uses a single 4 MB chunk of its address space we'd only need one 4 KiB table per level along the path:  with 10-bit levels that is k = ceil(35 / 10) = 4 levels, so 4 * 4 KiB = 16 KiB of page tables — compared to 128 GiB this is an obvious win (a factor of about 8 million).  While it may seem expensive to dereference memory k times for a single address translation, it is important to remember (and thank) the TLB:  on a hit we skip the walk entirely.  Still, there are reasons to avoid using a large number of levels, which will be further discussed in the next post.
 
 Now, for the full pseudo code for this system:
 
@@ -153,9 +153,19 @@ else                    // TLB Miss
 
 *(Pseudocode adapted from [OSTEP chapter 19](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-tlbs.pdf), Figure 19.1, extended with the multi-level walk of [chapter 20](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-smalltables.pdf) and the page-fault path of [chapter 21](https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys.pdf).  Note the terminology:  OSTEP says PFN — page frame number — for what CS:APP and the text above call the PPN, and OSTEP's `Offset` is our VPO.)*
 
-//TODO:  add an appendix to go over the drawbacks of multi-layer page tables and why big pages exist in the first place
+## Final Scorecard
 
-//TODO:  appendix on how the TLB works with context swtiches
+So, how did our final guess do?  Let's grade all three models against what we measured in part 2:
+
+| Observation from part 2 | Base and Bounds | Segmentation | Paging |
+|---|---|---|---|
+| Same virtual address in two programs maps to different physical addresses | Explained:  each process gets its own base | Explained:  each process gets its own segment bases | Explained:  each process gets its own page table — a context switch just swaps the PTBR |
+| 47-bit (128 TiB) address space | Fails:  needs 128 TiB of contiguous physical RAM | Partial:  the heap–stack gap costs nothing, but a large sparse heap still needs full backing | Explained:  multi-level tables map only what is used, so a huge, sparse address space costs KiBs of tables — not 128 TiB of RAM |
+| First touch of memory is much slower than the second | Unexplained:  everything is mapped up front, so both touches should cost the same | Unexplained:  same story | Explained:  first touch page-faults, and the OS must map the page in before retrying; later touches skip all of that (and usually hit the TLB) |
+| 4095 bytes/fault | Unexplained:  nothing in this model works in ~4 KiB units | Unexplained:  same story | Explained:  each fault maps exactly one 4096-byte page; the handful of unrelated faults drag the printed average to 4095 |
+
+Paging goes four for four.
+
 ## Resources:
 
 - [Computer Systems: A Programmer's Perspective (CS:APP), 3rd Edition, Randal E. Bryant and David R. O'Hallaron](https://csapp.cs.cmu.edu/): the classic systems textbook from the programmer's point of view.  Chapter 9 (Virtual Memory) covers address translation, TLBs, and multi-level page tables end to end.
