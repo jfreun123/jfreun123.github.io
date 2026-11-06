@@ -189,6 +189,8 @@ So, how did our final guess do?  Let's grade all three models against what we me
 
 Paging goes five for five.
 
+// TODO:  appendix — walk through some code samples and see what each of the three models (base and bounds, segmentation, paging) would do with them
+
 ## Resources:
 
 - [Computer Systems: A Programmer's Perspective (CS:APP), 3rd Edition, Randal E. Bryant and David R. O'Hallaron](https://csapp.cs.cmu.edu/): the classic systems textbook from the programmer's point of view.  Chapter 9 (Virtual Memory) covers address translation, TLBs, and multi-level page tables end to end.
