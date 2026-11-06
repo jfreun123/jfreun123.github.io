@@ -38,6 +38,7 @@ giscus:
 header_pages:
   - about.markdown
   - categories.md
+  - todo.markdown
 
 # Build settings
 theme: minima
